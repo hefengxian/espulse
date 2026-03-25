@@ -1,0 +1,27 @@
+# Binaries
+bin/
+tmp/
+dist/
+espulse
+
+# Go related
+go.sum
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# IDEs/Editors
+.vscode/
+.idea/
+.DS_Store
+
+# Project specific
+data/
+*.db
+build-errors.log
+
+# Frontend (if not using sub-gitignore)
+# frontend/node_modules/
+# frontend/dist/
