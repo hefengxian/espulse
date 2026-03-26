@@ -1,0 +1,25 @@
+@baseUrl = http://localhost:18080/api
+
+### 1. Ping Test
+GET {{baseUrl}}/ping
+
+### 2. List All Clusters
+GET {{baseUrl}}/clusters
+
+### 3. Create a New Cluster
+POST {{baseUrl}}/clusters
+Content-Type: application/json
+
+{
+  "name": "Local ES Cluster",
+  "hosts": ["http://localhost:9200"],
+  "color": "#18a058",
+  "notes": "Testing via .http file"
+}
+
+### 4. Get Single Cluster (Replace ID)
+# @name createCluster
+GET {{baseUrl}}/clusters/9cca561e-80e3-4420-a52b-945e69bb72d0
+
+### 5. Delete Cluster (Replace ID)
+DELETE {{baseUrl}}/clusters/9cca561e-80e3-4420-a52b-945e69bb72d0

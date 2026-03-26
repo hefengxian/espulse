@@ -5,18 +5,11 @@
 ---
 
 ## 🎯 当前目标
-实现集群管理的后端 API。
+实现 ES 代理 (/api/proxy) 通用请求转发。
 
 ---
 
 ## 🛠 正在进行 (In Progress)
-- [ ] **后端：集群管理 API**：实现集群的 CRUD 接口
-
----
-
-## 📋 待办事项 (Backlog)
-
-### Phase 1: 核心链路 (P0 功能)
 - [ ] **后端：ES 代理**：实现 `/api/proxy` 通用请求转发
 - [ ] **前端：基础布局**：侧边栏、顶部集群选择器
 - [ ] **前端：Dev Console**：Monaco Editor 集成与基础请求发送
@@ -40,3 +33,4 @@
 - [x] 初始化前端 Vue 3 (Vite + TS + Naive UI) 基础结构
 - [x] 配置 Air 热重载、Git 忽略文件 (.gitignore) 及空目录保护 (.gitkeep)
 - [x] **数据库与模型**：初始化 SQLite 数据库及 `clusters` 表
+- [x] **后端：集群管理 API**：实现集群的 CRUD 接口

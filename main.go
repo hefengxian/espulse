@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/gin-gonic/gin"
+	// "github.com/gin-gonic/gin"
 	"github.com/hefengxian/espulse/internal/database"
+	"github.com/hefengxian/espulse/internal/router"
 )
 
 func main() {
@@ -14,12 +15,9 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	r := gin.Default()
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
-	fmt.Println("ESPulse backend starting on http://localhost:18080...")
-	r.Run(":18080")
+	r := router.SetupRouter()
+
+	addr := "0.0.0.0:18080"
+	fmt.Printf("ESPulse backend starting on http://%v ...\n", addr)
+	r.Run(addr)
 }
