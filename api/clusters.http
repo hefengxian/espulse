@@ -1,4 +1,5 @@
 @baseUrl = http://localhost:18080/api
+@clusterId = f8bb4d38-a02a-4d40-aa16-7d91a2673f5d-
 
 ### 1. Ping Test
 GET {{baseUrl}}/ping
@@ -7,6 +8,7 @@ GET {{baseUrl}}/ping
 GET {{baseUrl}}/clusters
 
 ### 3. Create a New Cluster
+# @name createCluster
 POST {{baseUrl}}/clusters
 Content-Type: application/json
 
@@ -17,9 +19,12 @@ Content-Type: application/json
   "notes": "Testing via .http file"
 }
 
-### 4. Get Single Cluster (Replace ID)
-# @name createCluster
-GET {{baseUrl}}/clusters/9cca561e-80e3-4420-a52b-945e69bb72d0
+### 4. Get Single Cluster
+GET {{baseUrl}}/clusters/{{clusterId}}
 
-### 5. Delete Cluster (Replace ID)
-DELETE {{baseUrl}}/clusters/9cca561e-80e3-4420-a52b-945e69bb72d0
+### 5. Delete Cluster
+DELETE {{baseUrl}}/clusters/{{clusterId}}
+
+### 6. Proxy Request (Example: Get Cluster Info)
+GET {{baseUrl}}/proxy/_cluster/health
+X-Cluster-ID: {{clusterId}}

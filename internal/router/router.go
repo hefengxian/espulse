@@ -17,6 +17,8 @@ func SetupRouter() *gin.Engine {
 			clusters.GET("/:id", handlers.GetCluster)
 			clusters.DELETE("/:id", handlers.DeleteCluster)
 		}
+
+		api.Any("/proxy/*path", handlers.ProxyES)
 	}
 
 	return r

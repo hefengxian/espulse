@@ -10,7 +10,6 @@
 ---
 
 ## 🛠 正在进行 (In Progress)
-- [ ] **后端：ES 代理**：实现 `/api/proxy` 通用请求转发
 - [ ] **前端：基础布局**：侧边栏、顶部集群选择器
 - [ ] **前端：Dev Console**：Monaco Editor 集成与基础请求发送
 
@@ -27,6 +26,7 @@
 ---
 
 ## ✅ 已完成 (Done)
+- [x] **后端：ES 代理**：实现 `/api/proxy` 通用请求转发
 - [x] 完成 PRD 与 Architecture 架构设计文档
 - [x] 完善项目文档体系 (`PRD.md`, `Architecture.md`, `TASKS.md`, `CHANGELOG.md`)
 - [x] 按照架构文档搭建后端 Go 目录结构
