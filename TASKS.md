@@ -5,13 +5,13 @@
 ---
 
 ## 🎯 当前目标
-实现 ES 代理 (/api/proxy) 通用请求转发。
+实现前端基础布局与集群选择逻辑。
 
 ---
 
 ## 🛠 正在进行 (In Progress)
-- [ ] **前端：基础布局**：侧边栏、顶部集群选择器
-- [ ] **前端：Dev Console**：Monaco Editor 集成与基础请求发送
+- [ ] **前端：Dev Console**：Monaco Editor 集成与真实请求发送
+- [ ] **前端：集群选择逻辑**：实现从后端获取集群列表并进行全局切换
 
 ### Phase 2: 索引与监控 (P1 功能)
 - [ ] **后端：索引列表 API**：获取 ES 索引元数据
@@ -26,6 +26,8 @@
 ---
 
 ## ✅ 已完成 (Done)
+- [x] **前端：基础布局**：侧边栏、顶部集群选择器 (基于 UnoCSS 与 Vue Router)
+- [x] **前端：原型迁移**：完成 Dashboard 与 Dev Console 静态页面迁移
 - [x] **后端：ES 代理**：实现 `/api/proxy` 通用请求转发
 - [x] 完成 PRD 与 Architecture 架构设计文档
 - [x] 完善项目文档体系 (`PRD.md`, `Architecture.md`, `TASKS.md`, `CHANGELOG.md`)
