@@ -1,0 +1,101 @@
+:root {
+  /* ESPulse Core Theme Variables */
+  --esp-bg: #0a0a0b;
+  --esp-bg-2: #111114;
+  --esp-bg-3: #18181c;
+  --esp-bg-4: #1e1e24;
+  --esp-border: #232329;
+  --esp-border-2: #2e2e38;
+  --esp-text: #f0f0f2;
+  --esp-text-2: #8b8b9a;
+  --esp-text-3: #5a5a6e;
+  --esp-accent: #5b6cf8;
+  --esp-accent-glow: rgba(91, 108, 248, 0.15);
+  
+  --esp-green: #22c55e;
+  --esp-green-bg: rgba(34, 197, 94, 0.07);
+  --esp-green-border: rgba(34, 197, 94, 0.2);
+  --esp-yellow: #eab308;
+  --esp-yellow-bg: rgba(234, 179, 8, 0.07);
+  --esp-yellow-border: rgba(234, 179, 8, 0.2);
+  --esp-red: #ef4444;
+  --esp-red-bg: rgba(239, 68, 68, 0.07);
+  --esp-red-border: rgba(239, 68, 68, 0.2);
+
+  --esp-font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --esp-font-mono: "Geist Mono", monospace;
+
+  font-family: var(--esp-font-sans);
+  line-height: 1.5;
+  font-weight: 400;
+  background-color: var(--esp-bg);
+  color: var(--esp-text);
+}
+
+:root.light {
+  --esp-bg: #ffffff;
+  --esp-bg-2: #f9fafb;
+  --esp-bg-3: #f3f4f6;
+  --esp-bg-4: #e5e7eb;
+  --esp-border: #e5e7eb;
+  --esp-border-2: #d1d5db;
+  --esp-text: #111827;
+  --esp-text-2: #4b5563;
+  --esp-text-3: #9ca3af;
+  --esp-accent: #3b82f6;
+  --esp-accent-glow: rgba(59, 130, 246, 0.1);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg);
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+}
+
+/* Framework Borders & Layout Fine-tuning */
+.esp-sidebar {
+  border-right: 1px solid var(--esp-border);
+}
+
+.esp-sidebar-header {
+  border-bottom: 1px solid var(--esp-border);
+}
+
+.esp-sidebar-footer {
+  border-top: 1px solid var(--esp-border);
+}
+
+.esp-header {
+  border-bottom: 1px solid var(--esp-border);
+}
+
+.esp-header-left {
+  /* Ensure consistent sizing for the cluster selector button */
+  min-width: 180px;
+}
+
+/* Custom scrollbar matching the theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--esp-border-2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--esp-text-3);
+}
+
+/* 字体已通过 main.ts 引入离线版 @fontsource */

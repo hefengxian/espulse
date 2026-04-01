@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ESPulse — Dev Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#0a0a0b;--bg-2:#111114;--bg-3:#18181c;--bg-4:#1c1c22;
+  --border:#232329;--border-2:#2e2e38;
+  --text:#f0f0f2;--text-2:#8b8b9a;--text-3:#5a5a6e;
+  --accent:#5b6cf8;--accent-glow:rgba(91,108,248,0.15);
+  --green:#22c55e;--green-bg:rgba(34,197,94,0.08);--green-border:rgba(34,197,94,0.2);
+  --yellow:#eab308;--red:#ef4444;
+  --sidebar-w:220px;--sidebar-w-c:56px;--header-h:52px;
+  --nav-w:260px;--result-w:380px;
+}
+html.light{
+  --bg:#f5f5f8;--bg-2:#ffffff;--bg-3:#f0f0f4;--bg-4:#eaeaf0;
+  --border:#e2e2ea;--border-2:#d1d1db;
+  --text:#0d0d12;--text-2:#4a4a5e;--text-3:#9090a8;
+  --accent:#4f5ef0;--accent-glow:rgba(79,94,240,0.1);
+  --green-bg:rgba(34,197,94,0.06);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;overflow:hidden;font-size:14px;-webkit-font-smoothing:antialiased}
+.mono{font-family:'Geist Mono',monospace}
+svg.icon{display:inline-block;vertical-align:middle;flex-shrink:0}
+
+/* Sidebar */
+#sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--bg-2);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:width .22s cubic-bezier(.4,0,.2,1),min-width .22s cubic-bezier(.4,0,.2,1);overflow:hidden;z-index:10;flex-shrink:0}
+#sidebar.c{width:var(--sidebar-w-c);min-width:var(--sidebar-w-c)}
+.sb-logo{height:var(--header-h);display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.logo-mark{width:28px;height:28px;flex-shrink:0;background:linear-gradient(135deg,var(--accent) 0%,#8b5cf6 100%);border-radius:7px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px var(--accent-glow)}
+.logo-text{font-weight:600;font-size:15px;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;opacity:1;transition:opacity .18s}
+#sidebar.c .logo-text{opacity:0;pointer-events:none}
+.sb-section{padding:8px 8px 0;flex:1;overflow:hidden}
+.sb-label{font-size:10.5px;font-weight:500;letter-spacing:.08em;color:var(--text-3);text-transform:uppercase;padding:8px 8px 4px;white-space:nowrap;overflow:hidden;transition:opacity .15s}
+#sidebar.c .sb-label{opacity:0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:6px;cursor:pointer;color:var(--text-2);transition:background .12s,color .12s;white-space:nowrap;position:relative}
+.nav-item:hover{background:var(--bg-3);color:var(--text)}
+.nav-item.active{background:var(--accent-glow);color:var(--accent)}
+.nav-item.active svg.icon{color:var(--accent)}
+.nav-label{font-size:13.5px;font-weight:500;overflow:hidden;transition:opacity .15s}
+#sidebar.c .nav-label{opacity:0;pointer-events:none}
+.nav-badge{margin-left:auto;font-size:11px;padding:1px 6px;border-radius:999px;background:var(--bg-3);color:var(--text-2);font-family:'Geist Mono',monospace;flex-shrink:0;transition:opacity .15s}
+#sidebar.c .nav-badge{opacity:0}
+.tooltip{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);background:var(--bg-3);border:1px solid var(--border);color:var(--text);font-size:12.5px;padding:5px 10px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+#sidebar.c .nav-item:hover .tooltip{opacity:1}
+.sb-footer{padding:8px;border-top:1px solid var(--border);flex-shrink:0}
+.collapse-btn{display:flex;align-items:center;justify-content:center;width:100%;padding:7px 8px;border-radius:6px;cursor:pointer;color:var(--text-3);transition:background .12s,color .12s;border:none;background:transparent}
+.collapse-btn:hover{background:var(--bg-3);color:var(--text)}
+.ci{transition:transform .22s cubic-bezier(.4,0,.2,1)}
+#sidebar.c .ci{transform:rotate(180deg)}
+
+/* Main */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+header{height:var(--header-h);background:var(--bg-2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;flex-shrink:0}
+.cluster-sw{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);cursor:pointer;transition:border-color .15s;min-width:168px}
+.cluster-sw:hover{border-color:var(--border-2)}
+.cdot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;box-shadow:0 0 6px var(--green)}
+.cname{font-size:13px;font-weight:500;flex:1}
+.hbadge{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:7px;border:1px solid var(--green-border);background:var(--green-bg);font-size:12px;font-weight:600;font-family:'Geist Mono',monospace;color:var(--green)}
+.hbadge .bpulse{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.search-bar{flex:1;display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:0 12px;height:34px;transition:border-color .15s,box-shadow .15s;max-width:380px}
+.search-bar:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.search-bar input{flex:1;border:none;background:transparent;color:var(--text);font-family:'Instrument Sans',sans-serif;font-size:13.5px;outline:none}
+.search-bar input::placeholder{color:var(--text-3)}
+.sk{font-size:11px;padding:2px 5px;border-radius:4px;background:var(--bg-3);color:var(--text-3);border:1px solid var(--border);font-family:'Geist Mono',monospace;flex-shrink:0}
+.hactions{display:flex;align-items:center;gap:6px;margin-left:auto}
+.icon-btn{width:32px;height:32px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+.icon-btn:hover{background:var(--bg-3);color:var(--text);border-color:var(--border-2)}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:white;cursor:pointer;flex-shrink:0}
+
+/* Dev Console layout */
+#console-layout{flex:1;display:flex;overflow:hidden}
+
+/* ── Command Navigator (LEFT) ── */
+#cmd-nav{width:var(--nav-w);min-width:var(--nav-w);background:var(--bg-2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.cn-header{padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.cn-title{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px}
+.cn-search{display:flex;align-items:center;gap:7px;background:var(--bg-3);border:1px solid var(--border);border-radius:6px;padding:0 9px;height:30px;transition:border-color .15s}
+.cn-search:focus-within{border-color:var(--accent)}
+.cn-search input{flex:1;border:none;background:transparent;color:var(--text);font-family:'Instrument Sans',sans-serif;font-size:12.5px;outline:none}
+.cn-search input::placeholder{color:var(--text-3)}
+.cn-tabs{display:flex;gap:2px;padding:8px 14px 0;flex-shrink:0}
+.cn-tab{font-size:12px;font-weight:500;padding:4px 10px;border-radius:5px;cursor:pointer;color:var(--text-3);transition:background .12s,color .12s}
+.cn-tab:hover{background:var(--bg-3);color:var(--text-2)}
+.cn-tab.active{background:var(--accent-glow);color:var(--accent)}
+.cn-list{flex:1;overflow-y:auto;padding:8px 8px}
+
+/* Command item in navigator */
+.cmd-item{padding:8px 10px;border-radius:7px;cursor:pointer;border:1px solid transparent;transition:background .12s,border-color .12s;margin-bottom:3px}
+.cmd-item:hover{background:var(--bg-3);border-color:var(--border)}
+.cmd-item.active{background:var(--bg-4);border-color:var(--border-2)}
+.cmd-method{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:4px;font-size:10.5px;font-weight:700;font-family:'Geist Mono',monospace;margin-right:6px;flex-shrink:0}
+.cmd-method.GET{background:rgba(34,197,94,.12);color:#4ade80}
+.cmd-method.POST{background:rgba(91,108,248,.15);color:#818cf8}
+.cmd-method.PUT{background:rgba(234,179,8,.12);color:#fbbf24}
+.cmd-method.DELETE{background:rgba(239,68,68,.12);color:#f87171}
+.cmd-path{font-size:12px;font-family:'Geist Mono',monospace;color:var(--text);font-weight:500}
+.cmd-meta{display:flex;align-items:center;gap:6px;margin-top:5px}
+.cmd-note{font-size:11.5px;color:var(--text-2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmd-time{font-size:10.5px;color:var(--text-3);font-family:'Geist Mono',monospace;flex-shrink:0}
+.cmd-tag{font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid var(--border);color:var(--text-3);background:var(--bg-3);flex-shrink:0}
+.cn-section-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);padding:10px 10px 5px;opacity:.8}
+
+/* ── Editor (CENTER) ── */
+#editor-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--bg)}
+
+/* Editor toolbar */
+.editor-toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-2);flex-shrink:0}
+.tb-title{font-size:12.5px;font-weight:600;color:var(--text-2);flex:1}
+.tb-btn{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-2);font-family:'Instrument Sans',sans-serif;font-size:12.5px;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
+.tb-btn:hover{background:var(--bg-3);color:var(--text)}
+.tb-run{background:var(--accent);color:white;border-color:var(--accent)}
+.tb-run:hover{background:#6b7cff;border-color:#6b7cff}
+.tb-sep{width:1px;height:18px;background:var(--border);flex-shrink:0}
+
+/* Editor with line numbers */
+.editor-wrap{flex:1;display:flex;overflow:hidden;position:relative}
+.line-nums{width:44px;background:var(--bg-2);border-right:1px solid var(--border);padding:16px 0;text-align:right;overflow:hidden;flex-shrink:0;user-select:none}
+.line-num{font-size:12px;font-family:'Geist Mono',monospace;color:var(--text-3);line-height:1.7;padding:0 10px}
+.line-num.active{color:var(--text-2)}
+.editor-code{flex:1;overflow:auto;padding:16px}
+pre.code{font-family:'Geist Mono',monospace;font-size:12.5px;line-height:1.7;white-space:pre;color:var(--text-2);position:relative}
+
+/* Syntax coloring */
+.kw-method{color:#818cf8;font-weight:600}
+.kw-get{color:#4ade80;font-weight:600}
+.kw-post{color:#818cf8;font-weight:600}
+.kw-put{color:#fbbf24;font-weight:600}
+.kw-delete{color:#f87171;font-weight:600}
+.kw-path{color:var(--text)}
+.kw-key{color:#67e8f9}
+.kw-str{color:#a5f3a0}
+.kw-num{color:#fca5a5}
+.kw-bool{color:#c4b5fd}
+.kw-comment{color:var(--text-3);font-style:italic}
+.kw-bracket{color:var(--text-2)}
+
+/* Gutter indicator: clickable run button per command block */
+.run-gutter{position:absolute;left:-36px;display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:var(--accent);cursor:pointer;opacity:0;transition:opacity .15s;top:0}
+.code-block:hover .run-gutter{opacity:1}
+.run-gutter:hover{background:#6b7cff}
+
+/* active line highlight */
+.line-active{background:rgba(91,108,248,0.06);border-left:2px solid var(--accent);margin-left:-16px;padding-left:14px}
+
+/* ── Result panel (RIGHT) ── */
+#result-panel{width:var(--result-w);min-width:var(--result-w);background:var(--bg-2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.rp-title{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.rp-meta{font-size:11.5px;font-family:'Geist Mono',monospace;color:var(--green)}
+.rp-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.rp-tab{font-size:12px;font-weight:500;padding:8px 14px;cursor:pointer;color:var(--text-3);border-bottom:2px solid transparent;transition:color .12s,border-color .12s}
+.rp-tab:hover{color:var(--text-2)}
+.rp-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.rp-body{flex:1;overflow:auto;padding:14px}
+pre.result-json{font-family:'Geist Mono',monospace;font-size:12px;line-height:1.65;color:var(--text-2);white-space:pre-wrap;word-break:break-all}
+.rj-key{color:#67e8f9}
+.rj-str{color:#a5f3a0}
+.rj-num{color:#fca5a5}
+.rj-bool{color:#c4b5fd}
+.rj-null{color:var(--text-3)}
+
+/* Status bar */
+.status-bar{height:24px;background:var(--bg-4);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:16px;flex-shrink:0}
+.sb-item{font-size:11px;font-family:'Geist Mono',monospace;color:var(--text-3);display:flex;align-items:center;gap:5px}
+.sb-item.ok{color:var(--green)}
+.sb-item.warn{color:var(--yellow)}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:999px}
+
+/* bookmark pill on cmd-item */
+.cmd-bookmark{opacity:0;transition:opacity .12s}
+.cmd-item:hover .cmd-bookmark{opacity:1}
+.cmd-item.bookmarked .cmd-bookmark{opacity:1;color:var(--yellow)}
+
+/* Tag filter row */
+.cn-filter{display:flex;gap:5px;padding:6px 14px 8px;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid var(--border)}
+.filter-tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-3);cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+.filter-tag:hover{background:var(--bg-3);color:var(--text-2)}
+.filter-tag.on{background:var(--accent-glow);color:var(--accent);border-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="ic-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+  <symbol id="ic-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></symbol>
+  <symbol id="ic-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+  <symbol id="ic-shards" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+  <symbol id="ic-archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></symbol>
+  <symbol id="ic-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="ic-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><polyline points="16 15 13 12 16 9"/></symbol>
+  <symbol id="ic-chevrons" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></symbol>
+  <symbol id="ic-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+  <symbol id="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+  <symbol id="ic-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+  <symbol id="ic-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="ic-bookmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="ic-bookmark-filled" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="ic-format" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></symbol>
+  <symbol id="ic-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 0 .5-4"/><polyline points="3 3 3 9 9 9"/></symbol>
+  <symbol id="ic-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></symbol>
+  <symbol id="ic-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+  <symbol id="ic-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></symbol>
+</svg>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="sb-logo">
+    <div class="logo-mark">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="3" fill="white" opacity=".9"/><circle cx="7" cy="7" r="6" stroke="white" stroke-width="1" opacity=".4"/></svg>
+    </div>
+    <span class="logo-text">ESPulse</span>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Navigation</div>
+    <div class="nav-item" onclick="setActive(this)">
+      <svg class="icon" width="16" height="16"><use href="#ic-dashboard"/></svg>
+      <span class="nav-label">Dashboard</span>
+      <span class="tooltip">Dashboard</span>
+    </div>
+    <div class="nav-item active" onclick="setActive(this)">
+      <svg class="icon" width="16" height="16"><use href="#ic-terminal"/></svg>
+      <span class="nav-label">Dev Console</span>
+      <span class="tooltip">Dev Console</span>
+    </div>
+    <div class="nav-item" onclick="setActive(this)">
+      <svg class="icon" width="16" height="16"><use href="#ic-database"/></svg>
+      <span class="nav-label">Indices</span>
+      <span class="nav-badge">24</span>
+      <span class="tooltip">Indices</span>
+    </div>
+    <div class="nav-item" onclick="setActive(this)">
+      <svg class="icon" width="16" height="16"><use href="#ic-shards"/></svg>
+      <span class="nav-label">Shards</span>
+      <span class="nav-badge" style="color:var(--yellow)">3</span>
+      <span class="tooltip">Shards</span>
+    </div>
+    <div class="nav-item" onclick="setActive(this)">
+      <svg class="icon" width="16" height="16"><use href="#ic-archive"/></svg>
+      <span class="nav-label">Snapshots</span>
+      <span class="tooltip">Snapshots</span>
+    </div>
+    <div style="border-top:1px solid var(--border);margin:8px 0"></div>
+    <div class="sb-label">System</div>
+    <div class="nav-item" onclick="setActive(this)">
+      <svg class="icon" width="16" height="16"><use href="#ic-settings"/></svg>
+      <span class="nav-label">Settings</span>
+      <span class="tooltip">Settings</span>
+    </div>
+  </div>
+  <div class="sb-footer">
+    <button class="collapse-btn" onclick="document.getElementById('sidebar').classList.toggle('c')">
+      <svg class="icon ci" width="16" height="16"><use href="#ic-collapse"/></svg>
+    </button>
+  </div>
+</aside>
+
+<!-- Main -->
+<div id="main">
+  <header>
+    <div class="cluster-sw">
+      <div class="cdot"></div>
+      <span class="cname">prod-us-east-1</span>
+      <svg class="icon" width="14" height="14" style="color:var(--text-3)"><use href="#ic-chevrons"/></svg>
+    </div>
+    <div class="hbadge"><span class="bpulse"></span>GREEN</div>
+    <div class="search-bar">
+      <svg class="icon" width="14" height="14" style="color:var(--text-3)"><use href="#ic-search"/></svg>
+      <input type="text" placeholder="Search indices, aliases, nodes…"/>
+      <span class="sk">⌘K</span>
+    </div>
+    <div class="hactions">
+      <button class="icon-btn" onclick="toggleTheme()">
+        <svg class="icon" width="15" height="15"><use href="#ic-sun" id="theme-use"/></svg>
+      </button>
+      <button class="icon-btn"><svg class="icon" width="15" height="15"><use href="#ic-bell"/></svg></button>
+      <div class="avatar">JD</div>
+    </div>
+  </header>
+
+  <div id="console-layout">
+
+    <!-- ── Command Navigator ── -->
+    <div id="cmd-nav">
+      <div class="cn-header">
+        <div class="cn-title">Command Navigator</div>
+        <div class="cn-search">
+          <svg class="icon" width="12" height="12" style="color:var(--text-3)"><use href="#ic-search"/></svg>
+          <input type="text" placeholder="Filter commands…"/>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="cn-tabs">
+        <div class="cn-tab active">All</div>
+        <div class="cn-tab">
+          <svg class="icon" width="11" height="11" style="margin-right:3px"><use href="#ic-bookmark-filled"/></svg>Saved
+        </div>
+        <div class="cn-tab">
+          <svg class="icon" width="11" height="11" style="margin-right:3px"><use href="#ic-history"/></svg>History
+        </div>
+      </div>
+
+      <!-- Tag filters -->
+      <div class="cn-filter">
+        <span class="filter-tag on">All</span>
+        <span class="filter-tag">cluster</span>
+        <span class="filter-tag">shards</span>
+        <span class="filter-tag">search</span>
+        <span class="filter-tag">index</span>
+      </div>
+
+      <div class="cn-list">
+        <div class="cn-section-label">This session · 8 commands</div>
+
+        <!-- CMD 1 – active -->
+        <div class="cmd-item active" onclick="selectCmd(this,1)">
+          <div style="display:flex;align-items:center;margin-bottom:4px">
+            <span class="cmd-method GET">GET</span>
+            <span class="cmd-path">/_cluster/health</span>
+            <svg class="icon cmd-bookmark" width="12" height="12" style="margin-left:auto;color:var(--text-3)"><use href="#ic-bookmark"/></svg>
+          </div>
+          <div class="cmd-meta">
+            <span class="cmd-note">Cluster health check</span>
+            <span class="cmd-time">just now</span>
+          </div>
+        </div>
+
+        <!-- CMD 2 -->
+        <div class="cmd-item" onclick="selectCmd(this,2)">
+          <div style="display:flex;align-items:center;margin-bottom:4px">
+            <span class="cmd-method GET">GET</span>
+            <span class="cmd-path">/_cat/shards?v&h=…</span>
+            <svg class="icon cmd-bookmark bookmarked" width="12" height="12" style="margin-left:auto"><use href="#ic-bookmark-filled"/></svg>
+          </div>
+          <div class="cmd-meta">
+            <span class="cmd-tag">shards</span>
+            <span class="cmd-note">Yellow shard query</span>
+            <span class="cmd-time">12 min</span>
+          </div>
+        </div>
+
+        <!-- CMD 3 -->
+        <div class="cmd-item" onclick="selectCmd(this,3)">
+          <div style="display:flex;align-items:center;margin-bottom:4px">
+            <span class="cmd-method POST">POST</span>
+            <span class="cmd-path">/logs-prod-*/_search</span>
+          </div>
+          <div class="cmd-meta">
+            <span class="cmd-tag">search</span>
+            <span class="cmd-note">Error log search</span>
+            <span class="cmd-time">34 min</span>
+          </div>
+        </div>
+
+        <!-- CMD 4 -->
+        <div class="cmd-item" onclick="selectCmd(this,4)">
+          <div style="display:flex;align-items:center;margin-bottom:4px">
+            <span class="cmd-method GET">GET</span>
+            <span class="cmd-path">/_nodes/stats</span>
+          </div>
+          <div class="cmd-meta">
+            <span class="cmd-note">Node memory stats</span>
+            <span class="cmd-time">1 hr</span>
+          </div>
+        </div>
+
+        <!-- CMD 5 -->
+        <div class="cmd-item" onclick="selectCmd(this,5)">
+          <div style="display:flex;align-items:center;margin-bottom:4px">
+            <span class="cmd-method PUT">PUT</span>
+            <span class="cmd-path">/traces-2024.01/_settings</span>
+          </div>
+          <div class="cmd-meta">
+            <span class="cmd-tag">index</span>
+            <span class="cmd-note">Adjust replica count</span>
+            <span class="cmd-time">2 hr</span>
+          </div>
+        </div>
+
+        <div class="cn-section-label" style="margin-top:8px">3 weeks ago</div>
+
+        <!-- CMD 6 – the one the user couldn't find before! -->
+        <div class="cmd-item" onclick="selectCmd(this,6)">
+          <div style="display:flex;align-items:center;margin-bottom:4px">
+            <span class="cmd-method GET">GET</span>
+            <span class="cmd-path">/_cat/shards?v&h=…</span>
+            <svg class="icon cmd-bookmark bookmarked" width="12" height="12" style="margin-left:auto"><use href="#ic-bookmark-filled"/></svg>
+          </div>
+          <div class="cmd-meta">
+            <span class="cmd-tag">shards</span>
+            <span class="cmd-note">Find yellow state shards</span>
+            <span class="cmd-time">Jan 3</span>
+          </div>
+        </div>
+
+        <!-- CMD 7 -->
+        <div class="cmd-item" onclick="selectCmd(this,7)">
+          <div style="display:flex;align-items:center;margin-bottom:4px">
+            <span class="cmd-method POST">POST</span>
+            <span class="cmd-path">/metrics-prod/_search</span>
+          </div>
+          <div class="cmd-meta">
+            <span class="cmd-tag">search</span>
+            <span class="cmd-note">Aggregation by host</span>
+            <span class="cmd-time">Jan 3</span>
+          </div>
+        </div>
+
+        <!-- CMD 8 -->
+        <div class="cmd-item" onclick="selectCmd(this,8)">
+          <div style="display:flex;align-items:center;margin-bottom:4px">
+            <span class="cmd-method DELETE">DELETE</span>
+            <span class="cmd-path">/old-index-2023.10</span>
+          </div>
+          <div class="cmd-meta">
+            <span class="cmd-note">Cleanup old index</span>
+            <span class="cmd-time">Dec 28</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Editor ── -->
+    <div id="editor-area">
+      <div class="editor-toolbar">
+        <span class="tb-title">console.es &nbsp;<span style="color:var(--text-3);font-weight:400;font-size:11.5px">· 8 commands · line 1</span></span>
+        <button class="tb-btn">
+          <svg class="icon" width="13" height="13"><use href="#ic-format"/></svg>
+          Format
+        </button>
+        <button class="tb-btn">
+          <svg class="icon" width="13" height="13"><use href="#ic-copy"/></svg>
+          Copy
+        </button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn">
+          <svg class="icon" width="13" height="13"><use href="#ic-tag"/></svg>
+          Label
+        </button>
+        <button class="tb-btn">
+          <svg class="icon" width="13" height="13"><use href="#ic-bookmark"/></svg>
+          Save
+        </button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn tb-run">
+          <svg class="icon" width="13" height="13"><use href="#ic-play"/></svg>
+          Run &nbsp;<span style="opacity:.7;font-size:11px">⌘↵</span>
+        </button>
+      </div>
+
+      <div class="editor-wrap">
+        <!-- Line numbers -->
+        <div class="line-nums" id="line-nums">
+          <!-- generated by JS -->
+        </div>
+
+        <!-- Code -->
+        <div class="editor-code">
+<pre class="code"><span class="kw-comment"># 1 — Cluster health</span>
+<span class="kw-get">GET</span> <span class="kw-path">/_cluster/health</span>
+
+<span class="kw-comment"># 2 — Yellow shard query (saved 3 weeks ago)</span>
+<span class="kw-get">GET</span> <span class="kw-path">/_cat/shards</span>?<span class="kw-str">v</span>&<span class="kw-str">h</span>=<span class="kw-str">index,shard,prirep,state,unassigned.reason</span>&<span class="kw-str">s</span>=<span class="kw-str">state</span>
+
+<span class="kw-comment"># 3 — Search error logs</span>
+<span class="kw-post">POST</span> <span class="kw-path">/logs-prod-*/_search</span>
+<span class="kw-bracket">{</span>
+  <span class="kw-key">"size"</span>: <span class="kw-num">0</span>,
+  <span class="kw-key">"query"</span>: <span class="kw-bracket">{</span>
+    <span class="kw-key">"bool"</span>: <span class="kw-bracket">{</span>
+      <span class="kw-key">"filter"</span>: <span class="kw-bracket">[</span>
+        <span class="kw-bracket">{</span> <span class="kw-key">"term"</span>: <span class="kw-bracket">{</span> <span class="kw-key">"level"</span>: <span class="kw-str">"error"</span> <span class="kw-bracket">}</span> <span class="kw-bracket">}</span>,
+        <span class="kw-bracket">{</span> <span class="kw-key">"range"</span>: <span class="kw-bracket">{</span>
+            <span class="kw-key">"@timestamp"</span>: <span class="kw-bracket">{</span>
+              <span class="kw-key">"gte"</span>: <span class="kw-str">"now-1h"</span>
+            <span class="kw-bracket">}</span>
+          <span class="kw-bracket">}</span>
+        <span class="kw-bracket">}</span>
+      <span class="kw-bracket">]</span>
+    <span class="kw-bracket">}</span>
+  <span class="kw-bracket">}</span>,
+  <span class="kw-key">"aggs"</span>: <span class="kw-bracket">{</span>
+    <span class="kw-key">"by_service"</span>: <span class="kw-bracket">{</span>
+      <span class="kw-key">"terms"</span>: <span class="kw-bracket">{</span>
+        <span class="kw-key">"field"</span>: <span class="kw-str">"service.name"</span>,
+        <span class="kw-key">"size"</span>: <span class="kw-num">10</span>
+      <span class="kw-bracket">}</span>
+    <span class="kw-bracket">}</span>
+  <span class="kw-bracket">}</span>
+<span class="kw-bracket">}</span>
+
+<span class="kw-comment"># 4 — Node stats</span>
+<span class="kw-get">GET</span> <span class="kw-path">/_nodes/stats</span>?<span class="kw-str">metric</span>=<span class="kw-str">jvm,os,fs</span>
+
+<span class="kw-comment"># 5 — Adjust replica count for traces index</span>
+<span class="kw-put">PUT</span> <span class="kw-path">/traces-2024.01/_settings</span>
+<span class="kw-bracket">{</span>
+  <span class="kw-key">"index"</span>: <span class="kw-bracket">{</span>
+    <span class="kw-key">"number_of_replicas"</span>: <span class="kw-num">0</span>
+  <span class="kw-bracket">}</span>
+<span class="kw-bracket">}</span>
+</pre>
+        </div>
+      </div>
+
+      <!-- Status bar -->
+      <div class="status-bar">
+        <span class="sb-item ok">
+          <svg class="icon" width="10" height="10"><use href="#ic-play"/></svg>
+          200 OK · 14ms
+        </span>
+        <span class="sb-item">Ln 1, Col 1</span>
+        <span class="sb-item">UTF-8</span>
+        <span class="sb-item" style="margin-left:auto">prod-us-east-1 · ES 8.12.1</span>
+      </div>
+    </div>
+
+    <!-- ── Result Panel ── -->
+    <div id="result-panel">
+      <div class="rp-header">
+        <span class="rp-title">Response</span>
+        <span class="rp-meta">200 · 14ms</span>
+      </div>
+      <div class="rp-tabs">
+        <div class="rp-tab active">JSON</div>
+        <div class="rp-tab">Table</div>
+        <div class="rp-tab">Raw</div>
+      </div>
+      <div class="rp-body">
+<pre class="result-json"><span class="rj-key">"cluster_name"</span>: <span class="rj-str">"prod-us-east-1"</span>,
+<span class="rj-key">"status"</span>: <span class="rj-str">"green"</span>,
+<span class="rj-key">"timed_out"</span>: <span class="rj-bool">false</span>,
+<span class="rj-key">"number_of_nodes"</span>: <span class="rj-num">3</span>,
+<span class="rj-key">"number_of_data_nodes"</span>: <span class="rj-num">3</span>,
+<span class="rj-key">"active_primary_shards"</span>: <span class="rj-num">83</span>,
+<span class="rj-key">"active_shards"</span>: <span class="rj-num">160</span>,
+<span class="rj-key">"relocating_shards"</span>: <span class="rj-num">3</span>,
+<span class="rj-key">"initializing_shards"</span>: <span class="rj-num">0</span>,
+<span class="rj-key">"unassigned_shards"</span>: <span class="rj-num">3</span>,
+<span class="rj-key">"delayed_unassigned_shards"</span>: <span class="rj-num">0</span>,
+<span class="rj-key">"number_of_pending_tasks"</span>: <span class="rj-num">0</span>,
+<span class="rj-key">"number_of_in_flight_fetch"</span>: <span class="rj-num">0</span>,
+<span class="rj-key">"task_max_waiting_in_queue_millis"</span>: <span class="rj-num">0</span>,
+<span class="rj-key">"active_shards_percent_as_number"</span>: <span class="rj-num">98.16</span>
+</pre>
+      </div>
+    </div>
+
+  </div><!-- /console-layout -->
+</div><!-- /main -->
+
+<script>
+let isDark=true;
+function setActive(el){document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active')}
+function toggleTheme(){isDark=!isDark;document.documentElement.classList.toggle('light',!isDark);document.getElementById('theme-use').setAttribute('href',isDark?'#ic-sun':'#ic-moon')}
+function selectCmd(el){document.querySelectorAll('.cmd-item').forEach(c=>c.classList.remove('active'));el.classList.add('active')}
+
+// generate line numbers
+const pre=document.querySelector('pre.code');
+const lines=pre.textContent.split('\n').length;
+const ln=document.getElementById('line-nums');
+for(let i=1;i<=lines;i++){const d=document.createElement('div');d.className='line-num'+(i===1?' active':'');d.textContent=i;ln.appendChild(d)}
+
+// tab switching
+document.querySelectorAll('.cn-tab').forEach(t=>t.addEventListener('click',function(){document.querySelectorAll('.cn-tab').forEach(x=>x.classList.remove('active'));this.classList.add('active')}));
+document.querySelectorAll('.rp-tab').forEach(t=>t.addEventListener('click',function(){document.querySelectorAll('.rp-tab').forEach(x=>x.classList.remove('active'));this.classList.add('active')}));
+document.querySelectorAll('.filter-tag').forEach(t=>t.addEventListener('click',function(){document.querySelectorAll('.filter-tag').forEach(x=>x.classList.remove('on'));this.classList.add('on')}));
+</script>
+</body>
+</html>

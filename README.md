@@ -18,8 +18,8 @@ ESPulse is a lightweight Elasticsearch cluster management tool designed for DevO
 
 ### Frontend (Vue 3)
 1. Navigate to directory: `cd frontend`
-2. Install dependencies: `npm install`
-3. Start dev server: `npm run dev`
+2. Install dependencies: `pnpm install`
+3. Start dev server: `pnpm dev`
 
 ## 📂 Project Documentation
 
