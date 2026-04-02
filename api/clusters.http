@@ -13,9 +13,9 @@ POST {{baseUrl}}/clusters
 Content-Type: application/json
 
 {
-  "name": "Local ES Cluster",
+  "name": "CH-DC5",
   "hosts": ["http://localhost:9200"],
-  "color": "#18a058",
+  "color": "red",
   "notes": "Testing via .http file"
 }
 

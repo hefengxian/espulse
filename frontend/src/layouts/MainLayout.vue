@@ -14,18 +14,18 @@ import {
   useMessage
 } from 'naive-ui'
 import { clusterApi, type Cluster } from '../api/clusters'
+import { useClusterStore } from '../stores/cluster'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
 const route = useRoute()
 const message = useMessage()
+const clusterStore = useClusterStore()
+
+const { clusters, currentCluster, loading } = storeToRefs(clusterStore)
 
 const isCollapsed = ref(false)
 const isDark = ref(true)
-
-// Clusters state
-const clusters = ref<Cluster[]>([])
-const currentCluster = ref<Cluster | null>(null)
-const loading = ref(false)
 
 // Modal state
 const showAddModal = ref(false)
@@ -42,16 +42,9 @@ const addForm = ref({
 
 const fetchClusters = async () => {
   try {
-    loading.value = true
-    const data = await clusterApi.list()
-    clusters.value = data
-    if (data.length > 0 && !currentCluster.value) {
-      currentCluster.value = data[0]
-    }
+    await clusterStore.fetchClusters()
   } catch (err) {
     message.error('Failed to load clusters')
-  } finally {
-    loading.value = false
   }
 }
 
@@ -61,10 +54,9 @@ const handleClusterSelect = (key: string) => {
     return
   }
   
-  const selected = clusters.value.find(c => c.id === key)
-  if (selected) {
-    currentCluster.value = selected
-    message.success(`Switched to ${selected.name}`)
+  clusterStore.selectCluster(key)
+  if (currentCluster.value) {
+    message.success(`Switched to ${currentCluster.value.name}`)
   }
 }
 
@@ -74,9 +66,7 @@ const handleAddCluster = async () => {
       ...addForm.value,
       hosts: addForm.value.hosts.split(',').map(h => h.trim())
     }
-    const created = await clusterApi.create(newCluster)
-    clusters.value.push(created)
-    currentCluster.value = created
+    const created = await clusterStore.addCluster(newCluster)
     showAddModal.value = false
     message.success('Cluster added successfully')
     // Reset form
@@ -119,8 +109,10 @@ const clusterOptions = computed(() => {
 })
 
 const statusClass = computed(() => {
+  console.log(currentCluster.value)
   if (!currentCluster.value) return 'bg-text-3 shadow-none'
   const color = currentCluster.value.color || 'green'
+  console.log(color, `bg-${color} shadow-[0_0_6px_var(--esp-${color})]`)
   return `bg-${color} shadow-[0_0_6px_var(--esp-${color})]`
 })
 

@@ -46,6 +46,29 @@
   --esp-accent-glow: rgba(59, 130, 246, 0.1);
 }
 
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0
+}
+
+body {
+    font-family: 'Instrument Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased
+}
+
+.mono {
+    font-family: 'Geist Mono', monospace
+}
+
 body {
   margin: 0;
   min-height: 100vh;
