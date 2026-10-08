@@ -6,6 +6,7 @@ import (
 
 	// "github.com/gin-gonic/gin"
 	"github.com/hefengxian/espulse/internal/database"
+	"github.com/hefengxian/espulse/internal/es"
 	"github.com/hefengxian/espulse/internal/router"
 )
 
@@ -14,6 +15,9 @@ func main() {
 	if err := database.InitDB("./data"); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
+
+	// 启动后台采集：集群健康状态由后端定时收集，前端只读取快照
+	es.StartCollector()
 
 	r := router.SetupRouter()
 
