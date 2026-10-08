@@ -3,7 +3,7 @@ import {
   presetAttributify,
   presetIcons,
   presetTypography,
-  presetUno,
+  presetWind3,
   transformerDirectives,
   transformerVariantGroup,
 } from 'unocss'
@@ -12,6 +12,8 @@ export default defineConfig({
   shortcuts: [
     ['flex-center', 'flex items-center justify-center'],
     ['btn-icon', 'w-8 h-8 rounded-7px border border-border bg-transparent text-text-2 flex-center cursor-pointer transition-all hover:bg-bg-3 hover:text-text hover:border-border-2'],
+    // 分片分布矩阵里的分片方块
+    ['chip', 'w-4 h-4 rounded-3px text-10px font-mono flex-center leading-none flex-shrink-0'],
   ],
   theme: {
     colors: {
@@ -42,11 +44,15 @@ export default defineConfig({
     },
   },
   presets: [
-    presetUno(),
+    presetWind3(),
     presetAttributify(),
     presetIcons({
-      scale: 1.2,
       warn: true,
+      // 显式注册图标集：文档推荐的确定性写法。
+      // 依赖 Node 端"自动探测已安装图标集"在 Vite 配置加载环境下不可靠。
+      collections: {
+        lucide: () => import('@iconify-json/lucide/icons.json').then(i => i.default as any),
+      },
     }),
     presetTypography(),
   ],
