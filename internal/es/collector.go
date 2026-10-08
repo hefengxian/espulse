@@ -48,13 +48,16 @@ const (
 type kindSpec struct {
 	interval time.Duration
 	fetch    func(models.Cluster) (any, error)
+	// failed 判断「采集本身成功、但结果代表失败」的数据（如 status 的集群不可达）。
+	// 这类数据仍会作为最新快照返回，但会触发指数退避重试；nil 表示只依据 err 判定失败。
+	failed func(data any) bool
 }
 
 var kindSpecs = map[Kind]kindSpec{
-	KindStatus:  {interval: 30 * time.Second, fetch: fetchStatus},
-	KindNodes:   {interval: 30 * time.Second, fetch: fetchNodes},
-	KindIndices: {interval: 30 * time.Second, fetch: fetchIndices},
-	KindShards:  {interval: 30 * time.Second, fetch: fetchShards},
+	KindStatus:  {interval: 5 * time.Second, fetch: fetchStatus, failed: statusFailed},
+	KindNodes:   {interval: 5 * time.Second, fetch: fetchNodes},
+	KindIndices: {interval: 5 * time.Second, fetch: fetchIndices},
+	KindShards:  {interval: 5 * time.Second, fetch: fetchShards},
 }
 
 const (
@@ -63,6 +66,8 @@ const (
 	// idleTTL 是缓存被判为「无人查看」的空闲阈值：超过它即停止采集并释放缓存。
 	// 必须大于各数据类型的刷新间隔，否则会在淘汰与激活之间抖动。
 	idleTTL = 60 * time.Second
+	// backoffMax 是失败退避的封顶间隔：连续失败时重试间隔按 2 倍递增直至此值。
+	backoffMax = 300 * time.Second
 )
 
 // entryKey 是共享缓存的键：每个 (集群, 数据类型) 一份。
@@ -82,6 +87,7 @@ type entry struct {
 	lastAccess  time.Time // 最近一次被读取的时间，即「有人在看」的活跃信号
 	refreshing  bool
 	done        chan struct{}
+	failures    int // 连续失败次数，用于指数退避；任一次成功即归零
 }
 
 // Collector 持有全部共享采集缓存。
@@ -147,14 +153,18 @@ func (c *Collector) Get(clusterID string, kind Kind) (any, time.Time, bool) {
 	e.touch(now)
 
 	if data, at, has := e.read(); has {
-		if now.Sub(at) >= spec.interval {
+		if e.shouldRefresh(spec, now) {
 			startRefresh(e, key, spec)
 		}
 		return data, at, true
 	}
 
-	// 冷启动：没有旧数据可返回，只能等这一次采集完成
-	<-startRefresh(e, key, spec)
+	// 冷启动：没有旧数据可返回，只能等这一次采集完成。
+	// 已有 in-flight 采集时等它（单飞去重）；仍在失败退避窗口内则直接返回「暂无数据」，
+	// 避免页面轮询把退避绕过去、对挂掉的集群持续打 ES。
+	if e.refreshingNow() || e.shouldRefresh(spec, now) {
+		<-startRefresh(e, key, spec)
+	}
 	return e.read()
 }
 
@@ -171,7 +181,7 @@ func (c *Collector) Activate(clusterID string, kind Kind) {
 	now := time.Now()
 	e.touch(now)
 
-	if _, at, has := e.read(); !has || now.Sub(at) >= spec.interval {
+	if e.shouldRefresh(spec, now) {
 		startRefresh(e, key, spec)
 	}
 }
@@ -306,14 +316,35 @@ func (e *entry) idleFor(now time.Time) time.Duration {
 }
 
 // shouldRefresh 判断是否到了该刷新的时候。
-// 以 lastAttempt 为基准，保证采集失败时也按间隔重试，而不会每个扫描周期都打一次 ES。
+// 以 lastAttempt 为基准，保证采集失败时也按间隔重试，而不会每个扫描周期都打一次 ES；
+// 连续失败时间隔按 2 倍指数退避，封顶 backoffMax。
 func (e *entry) shouldRefresh(spec kindSpec, now time.Time) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.refreshing {
 		return false
 	}
-	return now.Sub(e.lastAttempt) >= spec.interval
+	return now.Sub(e.lastAttempt) >= backoffInterval(spec.interval, e.failures)
+}
+
+// refreshingNow 报告当前是否有 in-flight 采集。
+func (e *entry) refreshingNow() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.refreshing
+}
+
+// backoffInterval 按连续失败次数计算生效的刷新间隔：
+// 0 次失败即基准间隔，之后每次翻倍，直至封顶 backoffMax。
+func backoffInterval(base time.Duration, failures int) time.Duration {
+	d := base
+	for range failures {
+		d *= 2
+		if d >= backoffMax {
+			return backoffMax
+		}
+	}
+	return d
 }
 
 // startRefresh 启动一次采集并返回其完成信号。
@@ -335,13 +366,23 @@ func startRefresh(e *entry, key entryKey, spec kindSpec) <-chan struct{} {
 
 		e.mu.Lock()
 		e.lastAttempt = time.Now()
-		if err != nil {
-			// 保留上一次的成功数据，仅记录失败；下个间隔再重试
+		switch {
+		case err != nil:
+			// 保留上一次的成功数据，仅记录失败；进入指数退避，下个间隔再重试
+			e.failures++
 			log.Printf("采集失败 (cluster=%s, kind=%s): %v", key.clusterID, key.kind, err)
-		} else {
+		case spec.failed != nil && spec.failed(data):
+			// 数据本身代表失败（如集群不可达）：仍作为最新快照返回，但同样进入退避
 			e.data = data
 			e.hasData = true
 			e.updatedAt = e.lastAttempt
+			e.failures++
+			log.Printf("采集异常 (cluster=%s, kind=%s): 数据标记为失败，进入退避", key.clusterID, key.kind)
+		default:
+			e.data = data
+			e.hasData = true
+			e.updatedAt = e.lastAttempt
+			e.failures = 0
 		}
 		e.refreshing = false
 		e.done = nil
@@ -366,6 +407,12 @@ func loadAndFetch(clusterID string, spec kindSpec) (any, error) {
 // 保证快照里保留「不可达」这一状态，而不是被当作采集失败丢掉。
 func fetchStatus(cluster models.Cluster) (any, error) {
 	return collect(cluster), nil
+}
+
+// statusFailed 把「集群不可达」视为失败：数据仍会返回并展示，但触发指数退避重试。
+func statusFailed(data any) bool {
+	status, ok := data.(Status)
+	return ok && !status.Reachable
 }
 
 func collect(cluster models.Cluster) Status {

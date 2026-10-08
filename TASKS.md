@@ -25,9 +25,9 @@
 - [ ] 列表 / 表格视图切换（已归档到 PRD §8 功能池）
 
 ### 2. 集群健康采集
-- [x] `internal/es/collector.go`：30s 定时采集 + 内存快照
+- [x] `internal/es/collector.go`：按需激活的共享采集（5s 间隔 + 失败指数退避）+ 内存快照
 - [x] `GET /api/clusters` 返回时附带 status（reachable / health / version / node_count / …）
-- [x] 添加 / 编辑集群后立即采集一次，避免等待 30s
+- [x] 添加 / 编辑集群后立即采集一次，避免等待下个周期
 - [x] `POST /api/clusters/refresh`：手动触发重采
 - [x] 采集器改造为「按需激活的共享采集」：按 `(集群, kind)` 共享缓存 + 单飞去重 + `lastAccess` 空闲淘汰（见 PRD §6.3）
 - [x] 扩展 kind：`nodes`（`_cat/nodes`）、`shards`（`_cat/shards`）、`indices`（`_cat/indices`）
