@@ -121,4 +121,19 @@ body {
   background: var(--esp-text-3);
 }
 
+/* Dev Console：命令行左侧 Glyph Margin 的 Run 图标 */
+.esp-run-glyph {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2322c55e'%3E%3Cpath d='M5 3.5v17l14-8.5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 16px 16px;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.esp-run-glyph:hover {
+  opacity: 1;
+}
+
 /* 字体已通过 main.ts 引入离线版 @fontsource */

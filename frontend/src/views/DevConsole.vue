@@ -49,6 +49,8 @@ const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
   minimap: { enabled: false },
   fontSize: 13,
   lineNumbers: 'on',
+  lineNumbersMinChars: 1,
+  glyphMargin: true,
   roundedSelection: false,
   scrollBeyondLastLine: false,
   automaticLayout: true,
@@ -67,6 +69,7 @@ const resultOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
   ...editorOptions,
   readOnly: true,
   lineNumbers: 'off',
+  glyphMargin: false,
   folding: true
 }
 
@@ -193,7 +196,7 @@ const registerESLanguage = () => {
   })
 
   // 3. CodeLens Provider (Run button above command)
-  monaco.languages.registerCodeLensProvider(langId, {
+  /*monaco.languages.registerCodeLensProvider(langId, {
     provideCodeLenses: (model) => {
       const lenses: monaco.languages.CodeLens[] = []
       const lines = model.getLineCount()
@@ -218,12 +221,46 @@ const registerESLanguage = () => {
       }
       return { lenses, dispose: () => {} }
     }
-  })
+  })*/
 }
 
 const handleMount = (editor: any) => {
   editorRef.value = editor
   registerESLanguage()
+
+  // Glyph Margin：在命令行左侧显示可点击的 ▶ 图标（与 CodeLens 并存）
+  const glyphDecorations = editor.createDecorationsCollection()
+  const updateGlyphs = () => {
+    const model = editor.getModel()
+    if (!model) return
+    const decorations: monaco.editor.IModelDeltaDecoration[] = []
+    for (let i = 1; i <= model.getLineCount(); i++) {
+      const content = model.getLineContent(i).trim()
+      if (content.match(/^(GET|POST|PUT|DELETE|HEAD|PATCH)\s+/i)) {
+        decorations.push({
+          range: new monaco.Range(i, 1, i, 1),
+          options: {
+            glyphMarginClassName: 'esp-run-glyph',
+            glyphMarginHoverMessage: { value: 'Run command' }
+          }
+        })
+      }
+    }
+    glyphDecorations.set(decorations)
+  }
+  updateGlyphs()
+  editor.onDidChangeModelContent(updateGlyphs)
+
+  // 点击 Glyph Margin 图标执行该命令行
+  editor.onMouseDown((e: monaco.editor.IEditorMouseEvent) => {
+    if (e.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN || !e.target.position) return
+    const line = e.target.position.lineNumber
+    const content = editor.getModel()?.getLineContent(line).trim() || ''
+    if (content.match(/^(GET|POST|PUT|DELETE|HEAD|PATCH)\s+/i)) {
+      editor.setPosition({ lineNumber: line, column: 1 })
+      runCommand()
+    }
+  })
 
   // Register global command for CodeLens (if not already registered)
   // Note: monaco.editor.registerCommand is the official way to register commands by ID
@@ -333,8 +370,19 @@ const runCommand = async () => {
     requestStatus.value = responseData.status
     requestStatusText.value = responseData.statusText
 
-    const data = await responseData.json()
-    response.value = JSON.stringify(data, null, 2)
+    // ES 的 _cat 等 API 返回纯文本（text/plain），普通 API 返回 JSON。
+    // 依据响应头 Content-Type 决定是否解析，避免对纯文本调用 json() 报错。
+    const contentType = responseData.headers.get('content-type') || ''
+    const raw = await responseData.text()
+    if (contentType.includes('application/json')) {
+      try {
+        response.value = JSON.stringify(JSON.parse(raw), null, 2)
+      } catch {
+        response.value = raw
+      }
+    } else {
+      response.value = raw
+    }
   } catch (err) {
     response.value = JSON.stringify({ error: err instanceof Error ? err.message : String(err) }, null, 2)
     requestStatus.value = 500
