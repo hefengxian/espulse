@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, shallowRef, onBeforeUnmount, watch } from 'vue'
+import { ref, shallowRef, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { VueMonacoEditor, loader } from '@guolao/vue-monaco-editor'
 import * as monaco from 'monaco-editor'
 import { useClusterStore } from '../stores/cluster'
@@ -8,8 +9,13 @@ import { useMetadataStore } from '../stores/metadata'
 // Configure loader to use local monaco-editor
 loader.config({ monaco })
 
+const route = useRoute()
 const clusterStore = useClusterStore()
 const metadataStore = useMetadataStore()
+
+// 活动集群由 URL 决定（/cluster/:id/console）
+const clusterId = computed(() => route.params.id as string)
+const cluster = computed(() => clusterStore.clusterById(clusterId.value))
 const activeCmd = ref(1)
 const activeNavTab = ref('All')
 const activeResultTab = ref('JSON')
@@ -20,9 +26,9 @@ const requestStatus = ref<number | null>(null)
 const requestStatusText = ref('')
 
 // Watch for cluster change to fetch metadata
-watch(() => clusterStore.currentClusterId, (newId) => {
+watch(clusterId, (newId) => {
   if (newId) {
-    metadataStore.fetchIndices()
+    metadataStore.fetchIndices(newId)
   }
 }, { immediate: true })
 
@@ -168,7 +174,7 @@ const registerESLanguage = () => {
         }
 
         if (indexName) {
-          metadataStore.fetchFields(indexName)
+          metadataStore.fetchFields(clusterId.value, indexName)
           const fields = metadataStore.fields[indexName] || []
           fields.forEach(f => {
             suggestions.push({
@@ -304,7 +310,7 @@ const parseCurrentCommand = (editor: any): ESCommand | null => {
 }
 
 const runCommand = async () => {
-  if (!editorRef.value || !clusterStore.currentClusterId) return
+  if (!editorRef.value || !clusterId.value) return
   
   const cmd = parseCurrentCommand(editorRef.value)
   if (!cmd) return
@@ -317,7 +323,7 @@ const runCommand = async () => {
     const responseData = await fetch(url, {
       method: cmd.method,
       headers: {
-        'X-Cluster-ID': clusterStore.currentClusterId,
+        'X-Cluster-ID': clusterId.value,
         'Content-Type': 'application/json'
       },
       body: cmd.method !== 'GET' && cmd.method !== 'HEAD' && cmd.body ? cmd.body : undefined
@@ -444,7 +450,7 @@ const formatCode = () => {
         <div class="w-px h-4.5 bg-border flex-shrink-0"></div>
         <button 
           class="flex items-center gap-1.25 p-1.25 px-3 rounded-6px border border-accent bg-accent text-white font-sans text-12.5px cursor-pointer transition-all hover:bg-[#6b7cff] hover:border-[#6b7cff] disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="isLoading || !clusterStore.currentClusterId"
+          :disabled="isLoading || !clusterId"
           @click="runCommand"
         >
           <div v-if="isLoading" class="w-3.25 h-3.25 i-lucide-loader animate-spin"></div>
@@ -475,7 +481,7 @@ const formatCode = () => {
           Executing...
         </span>
         <span class="text-11px font-mono text-text-3 ml-auto">
-          {{ clusterStore.currentCluster?.name || 'No Cluster' }}
+          {{ cluster?.name || 'No Cluster' }}
         </span>
       </div>
     </div>

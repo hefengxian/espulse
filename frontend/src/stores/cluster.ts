@@ -1,38 +1,23 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { useLocalStorage } from '@vueuse/core'
-import { clusterApi, type Cluster } from '../api/clusters'
+import { ref } from 'vue'
+import { clusterApi, type Cluster, type SaveResult } from '../api/clusters'
 
 export const useClusterStore = defineStore('cluster', () => {
   const clusters = ref<Cluster[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Use localStorage to persist the current cluster ID
-  const currentClusterId = useLocalStorage<string | null>('espulse-current-cluster-id', null)
-
-  const currentCluster = computed(() => {
-    if (!currentClusterId.value) return null
-    return clusters.value.find(c => c.id === currentClusterId.value) || null
-  })
+  // 活动集群由 URL 决定（/cluster/:id/...），store 只提供按 id 查询
+  function clusterById(id: string | undefined) {
+    if (!id) return null
+    return clusters.value.find(c => c.id === id) || null
+  }
 
   async function fetchClusters() {
     loading.value = true
     error.value = null
     try {
-      const data = await clusterApi.list()
-      clusters.value = data
-      
-      // If no current cluster is selected, or the selected cluster no longer exists,
-      // select the first one in the list.
-      if (data.length > 0) {
-        const stillExists = data.some(c => c.id === currentClusterId.value)
-        if (!currentClusterId.value || !stillExists) {
-          currentClusterId.value = data[0].id
-        }
-      } else {
-        currentClusterId.value = null
-      }
+      clusters.value = await clusterApi.list()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch clusters'
       throw err
@@ -41,28 +26,38 @@ export const useClusterStore = defineStore('cluster', () => {
     }
   }
 
-  function selectCluster(id: string) {
-    const cluster = clusters.value.find(c => c.id === id)
-    if (cluster) {
-      currentClusterId.value = id
-    }
+  async function addCluster(cluster: Partial<Cluster>): Promise<SaveResult> {
+    const result = await clusterApi.create(cluster)
+    if (result.saved) await fetchClusters()
+    return result
   }
 
-  async function addCluster(cluster: Partial<Cluster>) {
-    const created = await clusterApi.create(cluster)
-    clusters.value.push(created)
-    currentClusterId.value = created.id
-    return created
+  async function updateCluster(id: string, cluster: Partial<Cluster>): Promise<SaveResult> {
+    const result = await clusterApi.update(id, cluster)
+    if (result.saved) await fetchClusters()
+    return result
+  }
+
+  async function removeCluster(id: string) {
+    await clusterApi.remove(id)
+    await fetchClusters()
+  }
+
+  // 手动刷新：触发后端重采，再拉取最新快照
+  async function refreshAll() {
+    await clusterApi.refresh()
+    await fetchClusters()
   }
 
   return {
     clusters,
     loading,
     error,
-    currentClusterId,
-    currentCluster,
+    clusterById,
     fetchClusters,
-    selectCluster,
-    addCluster
+    addCluster,
+    updateCluster,
+    removeCluster,
+    refreshAll,
   }
 })
