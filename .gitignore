@@ -5,7 +5,7 @@ dist/
 espulse
 
 # Go related
-go.sum
+# NOTE: go.sum must be committed — it pins dependency checksums for reproducible builds.
 *.exe
 *.exe~
 *.dll
