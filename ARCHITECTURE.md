@@ -196,11 +196,14 @@ Response:
 
 ### 集群数据接口
 ```
+GET    /api/clusters/:id/overview                    总览页聚合数据（status+nodes+indices+shards），?refresh=1 强制重采
 GET    /api/clusters/:id/nodes
-GET    /api/clusters/:id/indices?search=&status=&page=&page_size=
+GET    /api/clusters/:id/indices?search=&health=&status=&page=&page_size=   后端过滤 + 分页，返回 { data, total, page, page_size, updated_at }
 GET    /api/clusters/:id/shards
 GET    /api/clusters/:id/shards/active   仅返回 INITIALIZING / RELOCATING 状态的分片
 ```
+
+**采集模型**：采集器按 `(集群, 数据类型)` 维护共享缓存，采用「需求驱动 + 单飞去重」——只有被页面订阅的数据类型才会被定时刷新，同一缓存项的并发请求只触发一次 ES 调用，`lastAccess` 超过空闲阈值的缓存项停止刷新并被淘汰。接口语义是「读缓存（必要时触发刷新）」，而非「每次请求都采集」，因此服务器模式下 N 个并发用户只对应一份采集。数据类型、刷新间隔与生命周期详见 PRD §6.3。
 
 ### 静态资源（服务器模式）
 ```
