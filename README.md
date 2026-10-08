@@ -12,9 +12,15 @@ ESPulse is a lightweight Elasticsearch cluster management tool designed for DevO
 ## 🛠 Getting Started
 
 ### Backend (Go)
-1. Install Go 1.23+
-2. Install Air for hot reload: `go install github.com/air-verse/air@latest`
-3. Start the server: `air`
+1. Install Go 1.26+. If your local Go is older, `GOTOOLCHAIN=auto` downloads a suitable toolchain automatically.
+2. Start the server with hot reload: `go tool air`
+
+`air` is declared in `go.mod` via the `tool` directive, so its version is pinned in `go.sum` and `go tool` resolves it directly — no `go install`, no `PATH` setup. To add another dev tool:
+
+```sh
+go get -tool github.com/example/tool@latest
+go tool <tool-name>
+```
 
 ### Frontend (Vue 3)
 1. Navigate to directory: `cd frontend`
