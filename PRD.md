@@ -167,7 +167,9 @@ Cerebro 把「节点 × 索引」分片矩阵放在 overview；本产品**将其
 
 ### Phase 2 — Dev Console
 
-Monaco Editor、ES REST 自动补全、请求执行、历史记录、多 Tab。
+Monaco Editor、ES REST 自动补全、请求执行、**命令目录侧边栏**（解析当前编辑器内容生成命令大纲，长请求可快速定位到目标命令行）、多 Tab。
+
+侧边栏定位为**当前编辑器内容的目录/大纲**，不是历史记录；历史与收藏夹暂不纳入 Phase 2，后续再评估。
 
 ### Phase 3 — 差异化探索（待定）
 
