@@ -40,6 +40,9 @@ type overviewNode struct {
 	Master          string `json:"master"`
 	HeapPercent     string `json:"heap_percent"`
 	CPU             string `json:"cpu"`
+	Load1m          string `json:"load_1m"`
+	Load5m          string `json:"load_5m"`
+	Load15m         string `json:"load_15m"`
 	DiskUsedPercent string `json:"disk_used_percent"`
 	// Shards 是该节点承载的分片数；分片列表不可用时为空（前端据此隐藏该列）。
 	Shards *int `json:"shards,omitempty"`
@@ -169,6 +172,9 @@ func GetOverview(c *gin.Context) {
 			Master:          n.Master,
 			HeapPercent:     n.HeapPercent,
 			CPU:             n.CPU,
+			Load1m:          n.Load1m,
+			Load5m:          n.Load5m,
+			Load15m:         n.Load15m,
 			DiskUsedPercent: n.DiskUsedPercent,
 		}
 		if shardsLoaded {
