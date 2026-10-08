@@ -26,6 +26,9 @@ export interface OverviewNode {
   master: string
   heap_percent: string
   cpu: string
+  load_1m: string
+  load_5m: string
+  load_15m: string
   disk_used_percent: string
   shards?: number
 }

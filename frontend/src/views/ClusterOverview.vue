@@ -80,6 +80,28 @@ const pct = computed(() => {
 
 const fmtInt = (n: number) => n.toLocaleString('en-US')
 
+const NODE_ROLE_LABELS: Record<string, string> = {
+  c: '冷节点',
+  d: '数据节点',
+  f: '冻结节点',
+  h: '热节点',
+  i: '摄取节点',
+  l: '机器学习节点',
+  m: '主节点',
+  r: '远程集群客户端',
+  s: '内容节点',
+  t: '转换节点',
+  v: '仅投票节点',
+  w: '温节点',
+}
+
+const formatNodeRole = (role: string) => {
+  if (!role) return '-'
+  if (role === '-') return '协调节点'
+  const labels = Array.from(role, code => NODE_ROLE_LABELS[code])
+  return labels.every(Boolean) ? labels.join(' · ') : role
+}
+
 const fmtBytes = (bytes: number) => {
   if (!bytes) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
@@ -230,23 +252,23 @@ const usageClass = (value: string | undefined, high: number, mid: number) => {
                 <tr class="text-text-3 text-left">
                   <th class="px-4 py-2 font-500">名称</th>
                   <th class="px-3 py-2 font-500">角色</th>
-                  <th class="px-3 py-2 font-500">Master</th>
                   <th class="px-3 py-2 font-500">Heap</th>
                   <th class="px-3 py-2 font-500">CPU</th>
+                  <th class="px-3 py-2 font-500" title="1 分钟 / 5 分钟 / 15 分钟系统平均负载">负载 (1/5/15m)</th>
                   <th class="px-3 py-2 font-500">磁盘</th>
                   <th v-if="showNodeShards" class="px-3 py-2 font-500">分片</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="node in overview.nodes" :key="node.name" class="border-t border-border">
-                  <td class="px-4 py-2 font-mono">{{ node.name }}</td>
-                  <td class="px-3 py-2 font-mono text-text-2">{{ node.role || '-' }}</td>
-                  <td class="px-3 py-2">
-                    <span v-if="node.master === '*'" class="color-yellow font-600">*</span>
-                    <span v-else class="text-text-3">-</span>
+                  <td class="px-4 py-2 font-mono">
+                    {{ node.name }}
+                    <span v-if="node.master === '*'" class="color-yellow font-600" title="当前 Master 节点" aria-label="当前 Master 节点">★</span>
                   </td>
+                  <td class="px-3 py-2 text-text-2">{{ formatNodeRole(node.role) }}</td>
                   <td class="px-3 py-2 font-mono" :class="usageClass(node.heap_percent, 85, 70)">{{ node.heap_percent || '-' }}%</td>
                   <td class="px-3 py-2 font-mono" :class="usageClass(node.cpu, 90, 70)">{{ node.cpu || '-' }}%</td>
+                  <td class="px-3 py-2 font-mono" title="1 分钟 / 5 分钟 / 15 分钟系统平均负载">{{ node.load_1m || '-' }} / {{ node.load_5m || '-' }} / {{ node.load_15m || '-' }}</td>
                   <td class="px-3 py-2 font-mono" :class="usageClass(node.disk_used_percent, 90, 75)">{{ node.disk_used_percent || '-' }}%</td>
                   <td v-if="showNodeShards" class="px-3 py-2 font-mono">{{ node.shards ?? '-' }}</td>
                 </tr>
