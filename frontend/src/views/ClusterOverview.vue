@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { NButton, NTooltip } from 'naive-ui'
 import { useClusterStore } from '../stores/cluster'
 import { overviewApi, type Overview } from '../api/overview'
+import { formatAge, isStale } from '../utils/freshness'
 
 const route = useRoute()
 const clusterStore = useClusterStore()
@@ -164,14 +165,12 @@ const problemsAllClear = computed(() => {
 
 const showNodeShards = computed(() => overview.value?.nodes.some(n => n.shards !== undefined) ?? false)
 
-const freshnessText = computed(() => {
-  const t = overview.value?.updated_at
-  if (!t) return '尚未采集'
-  const ms = new Date(t).getTime()
-  if (!Number.isFinite(ms) || ms < Date.parse('2000-01-01')) return '尚未采集'
-  const seconds = Math.max(0, Math.round((now.value - ms) / 1000))
-  return `更新于 ${seconds} 秒前`
-})
+const freshnessText = computed(() => formatAge(overview.value?.updated_at, now.value))
+
+// 数据明显陈旧（落库快照被复用，或采集落后）时明确提示后台正在刷新，
+// 避免把旧快照读成实时（见 PRD §6.3）。阈值取三个采集周期。
+const STALE_MS = 15000
+const staleHint = computed(() => isStale(overview.value?.updated_at, now.value, STALE_MS))
 
 // 资源使用率着色：超过 high 标红，超过 mid 标黄
 const usageClass = (value: string | undefined, high: number, mid: number) => {
@@ -191,7 +190,9 @@ const usageClass = (value: string | undefined, high: number, mid: number) => {
         <div class="text-18px font-600 tracking--0.4px truncate">{{ cluster?.name || '集群' }}</div>
         <div class="text-12px font-mono text-text-3 truncate">{{ cluster?.hosts?.join(', ') || '-' }}</div>
       </div>
-      <div class="text-11.5px text-text-3">{{ freshnessText }}</div>
+      <div class="text-11.5px" :class="staleHint ? 'color-yellow' : 'text-text-3'">
+        {{ freshnessText }}<template v-if="staleHint"> · 正在刷新…</template>
+      </div>
       <n-button size="small" :loading="refreshing" @click="refresh">刷新</n-button>
     </div>
 

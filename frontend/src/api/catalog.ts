@@ -27,6 +27,13 @@ export interface EsIndex {
   rep: string
   'docs.count': string
   'store.size': string
+  // 累计计数（次），后端据此差分出速率
+  'indexing.index_total': string
+  'search.query_total': string
+  // 后端就地差分出的派生速率；样本不足时缺省（展示层显示 "—"，见 PRD §11）
+  index_rate?: number
+  search_rate?: number
+  docs_rate?: number
 }
 
 // 可选列在无值时是 "-"，因此一律按字符串处理，由展示层判定
@@ -49,6 +56,8 @@ export interface IndicesQuery {
   search?: string
   health?: string
   status?: string
+  // 隐藏 `.` 开头的系统索引（默认开启，由页面开关决定）
+  hideSystem?: boolean
   sort?: string
   order?: 'asc' | 'desc'
   page?: number
@@ -61,6 +70,8 @@ export interface IndicesPage {
   total: number
   page: number
   page_size: number
+  // 这批速率所用的差分窗口；0 表示尚未算出速率
+  rate_window_ms: number
   updated_at: string
 }
 
@@ -81,6 +92,7 @@ export const catalogApi = {
     if (query.search) params.set('search', query.search)
     if (query.health) params.set('health', query.health)
     if (query.status) params.set('status', query.status)
+    if (query.hideSystem) params.set('hide_system', '1')
     if (query.sort) params.set('sort', query.sort)
     if (query.order) params.set('order', query.order)
     if (query.page) params.set('page', String(query.page))

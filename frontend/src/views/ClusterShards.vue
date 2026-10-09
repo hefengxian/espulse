@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { NButton, NInput, NCheckbox, NRadioGroup, NRadioButton } from 'naive-ui'
 import { useClusterStore } from '../stores/cluster'
 import { catalogApi, allocationApi, type EsShard, type AllocationEnable } from '../api/catalog'
+import { formatAge } from '../utils/freshness'
 
 const route = useRoute()
 const clusterStore = useClusterStore()
@@ -22,10 +23,12 @@ type ViewMode = 'node' | 'index'
 const viewMode = ref<ViewMode>('node')
 const search = ref('')
 const onlyProblem = ref(false)
+// 系统索引（`.` 开头）多数场景不关心，默认隐藏，可切换（同 Cerebro）
+const hideSystem = ref(true)
 const limit = ref(30)
 
 // 过滤条件变化时重置分页
-watch([search, onlyProblem, viewMode], () => { limit.value = 30 })
+watch([search, onlyProblem, viewMode, hideSystem], () => { limit.value = 30 })
 
 const now = ref(Date.now())
 let ticker: number | undefined
@@ -147,6 +150,7 @@ const hasProblem = (index: string) => {
 const indexKeys = computed(() => {
   const q = search.value.trim().toLowerCase()
   let list = [...indexStats.value.keys()]
+  if (hideSystem.value) list = list.filter(i => !i.startsWith('.'))
   if (q) list = list.filter(i => i.toLowerCase().includes(q))
   if (onlyProblem.value) list = list.filter(hasProblem)
 
@@ -165,6 +169,10 @@ const indexKeys = computed(() => {
 
 const visibleIndexKeys = computed(() => indexKeys.value.slice(0, limit.value))
 const remainingIndexes = computed(() => Math.max(0, indexKeys.value.length - visibleIndexKeys.value.length))
+
+// 顶部汇总仍是整个集群的数字，被隐藏的系统索引数量需要说明，避免与矩阵里的索引数对不上
+const hiddenSystemCount = computed(() =>
+  hideSystem.value ? [...indexStats.value.keys()].filter(k => k.startsWith('.')).length : 0)
 
 // 节点轴：有界，不翻页；未分配的伪节点排在最后
 const nodeKeys = computed(() => {
@@ -243,13 +251,7 @@ const chipTip = (s: EsShard) => {
   return parts.join(' ')
 }
 
-const freshnessText = computed(() => {
-  if (!updatedAt.value) return '尚未采集'
-  const ms = new Date(updatedAt.value).getTime()
-  if (!Number.isFinite(ms) || ms < Date.parse('2000-01-01')) return '尚未采集'
-  const seconds = Math.max(0, Math.round((now.value - ms) / 1000))
-  return `更新于 ${seconds} 秒前`
-})
+const freshnessText = computed(() => formatAge(updatedAt.value, now.value))
 </script>
 
 <template>
@@ -278,6 +280,7 @@ const freshnessText = computed(() => {
       <span :class="stats.relocating ? 'color-yellow' : 'text-text-2'">迁移中 <b>{{ stats.relocating }}</b></span>
       <span :class="stats.initializing ? 'color-accent' : 'text-text-2'">初始化 <b>{{ stats.initializing }}</b></span>
       <span class="text-text-3">索引 <b class="text-text-2">{{ indexStats.size }}</b> · 节点 <b class="text-text-2">{{ realNodeCount }}</b></span>
+      <span v-if="hiddenSystemCount" class="text-text-3">已隐藏 {{ hiddenSystemCount }} 个系统索引</span>
     </div>
 
     <!-- 分片分配开关 -->
@@ -317,6 +320,7 @@ const freshnessText = computed(() => {
       </div>
 
       <n-input v-model:value="search" size="small" clearable placeholder="过滤索引名" class="w-56" />
+      <n-checkbox v-model:checked="hideSystem">隐藏 . 开头的索引</n-checkbox>
       <n-checkbox v-model:checked="onlyProblem">只看有问题的索引</n-checkbox>
 
       <div class="ml-auto flex items-center gap-3 flex-wrap text-11.5px text-text-3">
@@ -338,7 +342,7 @@ const freshnessText = computed(() => {
       该集群暂无分片。
     </div>
     <div v-else-if="indexKeys.length === 0" class="border border-border rounded-10px bg-bg-2 p-6 text-13px text-text-2">
-      没有匹配的索引。
+      没有匹配的索引{{ hideSystem ? '（. 开头的索引已隐藏）' : '' }}。
     </div>
 
     <!-- 矩阵 -->
@@ -391,7 +395,7 @@ const freshnessText = computed(() => {
       <!-- 索引轴分页 -->
       <div v-if="remainingIndexes > 0" class="border-t border-border px-4 py-2.5 flex items-center gap-3">
         <n-button size="tiny" @click="limit += 30">显示更多</n-button>
-        <span class="text-11.5px text-text-3">还有 {{ remainingIndexes }} 个索引未显示（共 {{ indexKeys.length }} 个）</span>
+        <span class="text-11.5px text-text-3">还有 {{ remainingIndexes }} 个索引未显示（筛选后共 {{ indexKeys.length }} 个）</span>
       </div>
     </div>
   </div>

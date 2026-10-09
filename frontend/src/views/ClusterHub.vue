@@ -15,6 +15,7 @@ import {
 } from 'naive-ui'
 import { useClusterStore } from '../stores/cluster'
 import { clusterApi, type Cluster } from '../api/clusters'
+import { formatAge } from '../utils/freshness'
 
 const router = useRouter()
 const message = useMessage()
@@ -213,13 +214,12 @@ const sortedClusters = computed(() =>
   })
 )
 
-const freshnessText = (cluster: Cluster) => {
-  const collectedAt = cluster.status?.collected_at
-  if (!collectedAt) return '尚未采集'
-
-  const seconds = Math.max(0, Math.round((now.value - new Date(collectedAt).getTime()) / 1000))
-  return cluster.status?.reachable ? `更新于 ${seconds} 秒前` : `采集失败于 ${seconds} 秒前`
-}
+const freshnessText = (cluster: Cluster) =>
+  formatAge(
+    cluster.status?.collected_at,
+    now.value,
+    cluster.status?.reachable ? '更新于' : '采集失败于',
+  )
 
 const enterCluster = (cluster: Cluster) => {
   router.push(`/cluster/${cluster.id}/overview`)

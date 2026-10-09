@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { NButton, NInput, NSelect } from 'naive-ui'
+import { NButton, NInput, NSelect, NCheckbox, NTooltip } from 'naive-ui'
 import { useClusterStore } from '../stores/cluster'
 import { catalogApi, type EsAlias, type EsIndex } from '../api/catalog'
+import { formatAge } from '../utils/freshness'
 
 const route = useRoute()
 const clusterStore = useClusterStore()
@@ -14,6 +15,9 @@ const cluster = computed(() => clusterStore.clusterById(clusterId.value))
 const rows = ref<EsIndex[]>([])
 const total = ref(0)
 const updatedAt = ref('')
+// rateWindowMs 是后端算这批速率所用的差分窗口（见 PRD §11）。
+// 它随页面打开时长从 5s 长到 60s，因此必须如实展示，不能把短窗口的毛刺当稳定速率。
+const rateWindowMs = ref(0)
 const loading = ref(false)
 const refreshing = ref(false)
 const error = ref('')
@@ -22,6 +26,8 @@ const error = ref('')
 const search = ref('')
 const health = ref('')
 const status = ref('')
+// 系统索引（`.` 开头，如 .security-7 / .kibana_1）多数场景不关心，默认隐藏，可切换（同 Cerebro）
+const hideSystem = ref(true)
 const page = ref(1)
 const pageSize = ref(20)
 const sort = ref('index')
@@ -69,6 +75,8 @@ const sortOptions = [
   { label: '按存储', value: 'store' },
   { label: '按文档数', value: 'docs' },
   { label: '按 Health', value: 'health' },
+  { label: '按写入速率', value: 'index_rate' },
+  { label: '按查询速率', value: 'search_rate' },
 ]
 
 async function load(silent = false, force = false, retried = false) {
@@ -80,6 +88,7 @@ async function load(silent = false, force = false, retried = false) {
       search: search.value.trim() || undefined,
       health: health.value || undefined,
       status: status.value || undefined,
+      hideSystem: hideSystem.value || undefined,
       sort: sort.value || undefined,
       order: order.value,
       page: page.value,
@@ -96,6 +105,7 @@ async function load(silent = false, force = false, retried = false) {
     rows.value = res.data ?? []
     total.value = res.total
     updatedAt.value = res.updated_at
+    rateWindowMs.value = res.rate_window_ms ?? 0
     error.value = ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败'
@@ -153,7 +163,7 @@ watch(search, () => {
   if (searchTimer) window.clearTimeout(searchTimer)
   searchTimer = window.setTimeout(() => { page.value = 1; load() }, 300)
 })
-watch([health, status, pageSize, sort, order], () => { page.value = 1; load() })
+watch([health, status, pageSize, sort, order, hideSystem], () => { page.value = 1; load() })
 
 const toggleOrder = () => { order.value = order.value === 'asc' ? 'desc' : 'asc' }
 
@@ -161,6 +171,8 @@ const toggleOrder = () => { order.value = order.value === 'asc' ? 'desc' : 'asc'
 const showIndex = (indexName: string) => {
   skipSearchWatch = true
   search.value = indexName
+  // 目标是系统索引时先关掉隐藏开关，否则跳过去只会看到「没有匹配的索引」
+  if (indexName.startsWith('.')) hideSystem.value = false
   page.value = 1
   view.value = 'indices'
   // watch(search) 是异步 flush 的。无论这次赋值是否真的改变了 search（值相同则 watcher 不触发），
@@ -224,12 +236,33 @@ const fmtBytes = (value: string) => {
   return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`
 }
 
-const freshnessText = computed(() => {
-  if (!updatedAt.value) return '尚未采集'
-  const ms = new Date(updatedAt.value).getTime()
-  if (!Number.isFinite(ms) || ms < Date.parse('2000-01-01')) return '尚未采集'
-  const seconds = Math.max(0, Math.round((now.value - ms) / 1000))
-  return `更新于 ${seconds} 秒前`
+const freshnessText = computed(() => formatAge(updatedAt.value, now.value))
+
+// fmtRate 渲染每秒速率。没有足够样本时后端不给这个字段，显示 "—" 而不是编一个 0。
+const fmtRate = (value?: number) => {
+  if (value === undefined || value === null || !Number.isFinite(value)) return '—'
+  if (value === 0) return '0'
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`
+  if (value >= 10) return String(Math.round(value))
+  return value.toFixed(1)
+}
+
+// 速率是就地差分出来的派生值，窗口多长必须说清楚（见 PRD §11）
+const rateHint = computed(() => {
+  if (!rateWindowMs.value) {
+    return '尚未积累到足够的样本，速率需要至少两次采集才能算出（约 5 秒后出现）。'
+  }
+  return `速率 = 累计计数之差 / 窗口长度，当前窗口约 ${Math.round(rateWindowMs.value / 1000)} 秒（最长 60 秒）。样本不足的索引显示为 —。`
+})
+
+// 空列表的原因不同，提示也不同：别让「被隐藏掉了」读成「这个集群没有索引」
+const emptyText = computed(() => {
+  const filtered = !!search.value || !!health.value || !!status.value
+  if (total.value === 0 && !filtered) {
+    return hideSystem.value ? '没有匹配的索引（. 开头的索引已隐藏）。' : '该集群暂无索引。'
+  }
+  return '没有匹配的索引。'
 })
 
 // ---------- 别名展示辅助 ----------
@@ -302,6 +335,7 @@ const routingText = (a: EsAlias) => {
       <n-input v-model:value="search" size="small" clearable placeholder="过滤索引名" class="w-64" />
       <n-select v-model:value="health" size="small" :options="healthOptions" class="w-36" />
       <n-select v-model:value="status" size="small" :options="statusOptions" class="w-32" />
+      <n-checkbox v-model:checked="hideSystem">隐藏 . 开头的索引</n-checkbox>
       <n-select v-model:value="sort" size="small" :options="sortOptions" class="w-32" />
       <button
         class="btn-icon"
@@ -319,7 +353,7 @@ const routingText = (a: EsAlias) => {
       加载中…
     </div>
     <div v-else-if="rows.length === 0" class="border border-border rounded-10px bg-bg-2 p-6 text-13px text-text-2">
-      {{ total === 0 && !search && !health && !status ? '该集群暂无索引。' : '没有匹配的索引。' }}
+      {{ emptyText }}
     </div>
     <div v-else class="border border-border rounded-10px bg-bg-2 overflow-hidden">
       <div class="overflow-x-auto">
@@ -333,6 +367,22 @@ const routingText = (a: EsAlias) => {
               <th class="px-3 py-2.5 font-500 text-right">副</th>
               <th class="px-3 py-2.5 font-500 text-right">文档</th>
               <th class="px-4 py-2.5 font-500 text-right">存储</th>
+              <th class="px-3 py-2.5 font-500 text-right">
+                <n-tooltip trigger="hover">
+                  <template #trigger>
+                    <span class="border-b border-dashed border-current cursor-help">写入/s</span>
+                  </template>
+                  {{ rateHint }}
+                </n-tooltip>
+              </th>
+              <th class="px-4 py-2.5 font-500 text-right">
+                <n-tooltip trigger="hover">
+                  <template #trigger>
+                    <span class="border-b border-dashed border-current cursor-help">查询/s</span>
+                  </template>
+                  {{ rateHint }}
+                </n-tooltip>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -351,6 +401,8 @@ const routingText = (a: EsAlias) => {
               <td class="px-3 py-2 font-mono text-right">{{ idx.rep || '-' }}</td>
               <td class="px-3 py-2 font-mono text-right">{{ fmtInt(idx['docs.count']) }}</td>
               <td class="px-4 py-2 font-mono text-right text-text-2">{{ fmtBytes(idx['store.size']) }}</td>
+              <td class="px-3 py-2 font-mono text-right" :class="idx.index_rate === undefined ? 'text-text-3' : ''">{{ fmtRate(idx.index_rate) }}</td>
+              <td class="px-4 py-2 font-mono text-right text-text-2">{{ fmtRate(idx.search_rate) }}</td>
             </tr>
           </tbody>
         </table>
