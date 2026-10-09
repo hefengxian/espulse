@@ -1,7 +1,7 @@
 # TASKS — ESPulse 任务看板
 
 > 状态：进行中 | 当前阶段：**Phase 1 - Cerebro 核心功能替代**
-> 原则：功能先行，UI 后置（详见 [PRD.md](./PRD.md) §2）
+> 原则：功能先行，UI 后置（见 [PRD.md](./PRD.md) §2.1）；单页看板、信息密集、动态刷新、不增栏目（见 §2.4）
 
 ---
 
@@ -21,7 +21,7 @@
 - [x] 强制「先探测、后保存」（新增、以及编辑时连接信息变更）
 - [x] 前端：Cluster Hub 卡片墙（空状态 / 新增 / 编辑 / 删除二次确认 / 手动刷新）
 - [x] 移除顶部集群选择器，活动集群改由 URL 决定
-- [ ] 多 host 故障转移（当前只取 `hosts[0]`）
+- [x] 多 host 故障转移（请求层依次尝试各 host；只有传输层错误才切换；记住最近可用节点并优先命中；全失败时报「N 个 host 均不可达」）
 - [ ] 列表 / 表格视图切换（已归档到 PRD §8 功能池）
 
 ### 2. 集群健康采集
@@ -40,10 +40,10 @@
   - [x] 节点简表：name / role / master / heap% / cpu% / disk% / 承载分片数
   - [x] 问题清单：未分配分片 Top 20（含原因）/ relocating 分片 / 非 green 索引（失衡改由节点表的「分片」列呈现，不做模糊阈值判定）
   - [x] 数据接口 `GET /api/clusters/:id/overview`（聚合 status / nodes / indices / shards，支持 `?refresh=1` 强制重采）
-- [ ] 节点列表：`_cat/nodes`
+- [x] 节点信息并入总览的节点表（**取消单独设页**，见 PRD §2.4 / §6.4）
 - [x] 索引列表：`_cat/indices`，后端过滤（索引名 / health / status）+ 排序（索引名 / 存储 / 文档 / health）+ 分页，前端表格与分页器；侧边栏新增 Indices 入口（`/cluster/:id/indices`）
 - [x] 分片分布：`_cat/shards` 矩阵，支持「按节点 / 按索引」视角切换、索引名搜索与「只看有问题的索引」过滤、索引轴分页（见 PRD §6.2）；侧边栏新增 Shards 入口（`/cluster/:id/shards`）
-- [ ] 索引别名：`_cat/aliases`
+- [x] 索引别名：`_cat/aliases`，后端 kind 采集 + `GET /api/clusters/:id/aliases`，前端并入索引页的「别名」视图（**不单独设页**，见 PRD §2.4）
 
 ---
 
