@@ -29,6 +29,16 @@ export interface EsIndex {
   'store.size': string
 }
 
+// 可选列在无值时是 "-"，因此一律按字符串处理，由展示层判定
+export interface EsAlias {
+  alias: string
+  index: string
+  filter?: string
+  'routing.index'?: string
+  'routing.search'?: string
+  is_write_index?: string
+}
+
 // updated_at 是这批数据的采集时间；data 为 null 表示尚未取到数据
 export interface CatalogResponse<T> {
   data: T[] | null
@@ -81,6 +91,9 @@ export const catalogApi = {
   },
   shards: (clusterId: string, refresh = false) =>
     getJson<CatalogResponse<EsShard>>(`/api/clusters/${clusterId}/shards${withRefresh(refresh)}`),
+  // 别名数量有上界，一次返回全量，不分页
+  aliases: (clusterId: string, refresh = false) =>
+    getJson<CatalogResponse<EsAlias>>(`/api/clusters/${clusterId}/aliases${withRefresh(refresh)}`),
 }
 
 // ---------- 分片分配开关 ----------
