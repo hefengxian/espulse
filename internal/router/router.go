@@ -24,6 +24,7 @@ func SetupRouter() *gin.Engine {
 			clusters.GET("/:id/nodes", handlers.ListNodes)
 			clusters.GET("/:id/indices", handlers.ListIndices)
 			clusters.GET("/:id/shards", handlers.ListShards)
+			clusters.GET("/:id/aliases", handlers.ListAliases)
 		}
 
 		api.Any("/proxy/*path", handlers.ProxyES)

@@ -92,6 +92,17 @@ func ListShards(c *gin.Context) {
 	respondCatalog(c, rows, updatedAt, ok)
 }
 
+// ListAliases 返回某集群的索引别名列表。
+// 别名数量有上界（远小于索引数），因此不分页，一次返回全量。
+func ListAliases(c *gin.Context) {
+	id := c.Param("id")
+	if refreshRequested(c) {
+		es.RefreshKind(id, es.KindAliases)
+	}
+	rows, updatedAt, ok := es.GetAliases(id)
+	respondCatalog(c, rows, updatedAt, ok)
+}
+
 // filterIndices 按名称子串 / health / status 过滤，空参数表示不过滤。
 func filterIndices(rows []es.Index, search, health, status string) []es.Index {
 	search = strings.ToLower(strings.TrimSpace(search))

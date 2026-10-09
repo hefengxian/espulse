@@ -2,6 +2,7 @@ package es
 
 import (
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/hefengxian/espulse/internal/models"
@@ -45,6 +46,18 @@ type Shard struct {
 	UnassignedReason string `json:"unassigned.reason"`
 }
 
+// Alias 是 _cat/aliases 的一行。一个别名指向多个索引时会展开成多行，这是 ES 的原始表达，
+// 前端按 (别名, 索引) 逐行展示即可。
+// 可选列在无值时是 "-"，因此不做类型转换，由前端判定。
+type Alias struct {
+	Alias         string `json:"alias"`
+	Index         string `json:"index"`
+	Filter        string `json:"filter"`
+	RoutingIndex  string `json:"routing.index"`
+	RoutingSearch string `json:"routing.search"`
+	IsWriteIndex  string `json:"is_write_index"`
+}
+
 func fetchNodes(cluster models.Cluster) (any, error) {
 	query := url.Values{}
 	query.Set("format", "json")
@@ -68,6 +81,40 @@ func fetchShards(cluster models.Cluster) (any, error) {
 	query.Set("h", "index,shard,prirep,state,node,unassigned.reason")
 	query.Set("s", "index,shard")
 	return fetchCat[Shard](cluster, "/_cat/shards", query)
+}
+
+// aliasColumns 是全部别名列；末尾三项（filter / routing / is_write_index）在老版本 ES 上可能不被识别。
+var aliasColumns = []string{"alias", "index", "filter", "routing.index", "routing.search", "is_write_index"}
+
+// aliasQuery 按给定列构造 _cat/aliases 查询。
+func aliasQuery(columns []string) url.Values {
+	query := url.Values{}
+	query.Set("format", "json")
+	query.Set("h", strings.Join(columns, ","))
+	query.Set("s", "alias,index")
+	return query
+}
+
+// fetchAliases 拉取索引别名列表。
+//
+// is_write_index 一类列由较新的 ES 版本引入，老版本对未知列会直接返回 400（Unknown column）。
+// 为守住 §9 的 6.x / 7.x / 8.x 兼容要求，这里做一次降级重试：先用全量列，被拒则退回基础列。
+func fetchAliases(cluster models.Cluster) (any, error) {
+	rows, err := fetchCat[Alias](cluster, "/_cat/aliases", aliasQuery(aliasColumns))
+	if err == nil {
+		return rows, nil
+	}
+
+	// 只有「ES 明确拒绝了这次查询」才降级；连不上之类的问题不该被重试掩盖
+	if !strings.Contains(err.Error(), "ES 返回 400") {
+		return nil, err
+	}
+
+	fallback, fallbackErr := fetchCat[Alias](cluster, "/_cat/aliases", aliasQuery(aliasColumns[:3]))
+	if fallbackErr != nil {
+		return nil, err // 返回原始错误，它对排查更有说明力
+	}
+	return fallback, nil
 }
 
 // fetchCat 向 _cat API 取一份 JSON 列表。泛型仅用于省掉三次重复的解析样板。
@@ -113,6 +160,18 @@ func GetShards(clusterID string) ([]Shard, time.Time, bool) {
 		return nil, at, false
 	}
 	rows, ok := data.([]Shard)
+	if !ok {
+		return nil, at, false
+	}
+	return rows, at, true
+}
+// GetAliases 读取某集群的索引别名列表，并把该集群标记为活跃。
+func GetAliases(clusterID string) ([]Alias, time.Time, bool) {
+	data, at, has := collector.Get(clusterID, KindAliases)
+	if !has {
+		return nil, at, false
+	}
+	rows, ok := data.([]Alias)
 	if !ok {
 		return nil, at, false
 	}

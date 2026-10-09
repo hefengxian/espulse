@@ -91,8 +91,9 @@ func GetOverview(c *gin.Context) {
 	clusterID := c.Param("id")
 
 	// refresh=1 表示用户手动刷新：绕过刷新间隔强制重采（仍受单飞去重保护）
+	// 只重采本页真正展示的四类数据；别名等本页不展示的 kind 不在此唤醒（见 PRD §6.3）
 	if c.Query("refresh") == "1" {
-		es.RefreshCluster(clusterID)
+		es.RefreshCluster(clusterID, es.KindStatus, es.KindNodes, es.KindIndices, es.KindShards)
 	}
 
 	status, statusAt, ok := es.GetStatus(clusterID)

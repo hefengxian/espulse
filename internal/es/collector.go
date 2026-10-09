@@ -41,6 +41,8 @@ const (
 	KindIndices Kind = "indices"
 	// KindShards 是分片列表（_cat/shards）。
 	KindShards Kind = "shards"
+	// KindAliases 是索引别名列表（_cat/aliases）。
+	KindAliases Kind = "aliases"
 )
 
 // kindSpec 描述一类数据的刷新间隔与获取方式。
@@ -58,6 +60,7 @@ var kindSpecs = map[Kind]kindSpec{
 	KindNodes:   {interval: 5 * time.Second, fetch: fetchNodes},
 	KindIndices: {interval: 5 * time.Second, fetch: fetchIndices},
 	KindShards:  {interval: 5 * time.Second, fetch: fetchShards},
+	KindAliases: {interval: 5 * time.Second, fetch: fetchAliases},
 }
 
 const (
@@ -267,12 +270,16 @@ func RefreshKind(clusterID string, kind Kind) {
 	collector.RefreshNow(clusterID, kind)
 }
 
-// RefreshCluster 强制刷新某集群的全部数据类型，用于页面的手动刷新。
+// RefreshCluster 强制刷新某集群的指定数据类型（忽略刷新间隔），用于页面的手动刷新。
 // 各组数据并行刷新，且各自仍受单飞去重保护。
-func RefreshCluster(clusterID string) {
-	kinds := make([]Kind, 0, len(kindSpecs))
-	for kind := range kindSpecs {
-		kinds = append(kinds, kind)
+//
+// 调用方应只传该页面真正需要的 kind —— 手动刷新不该为「本页不展示的数据」白跑一次 ES（见 PRD §6.3）。
+// 不传 kind 表示刷新全部。
+func RefreshCluster(clusterID string, kinds ...Kind) {
+	if len(kinds) == 0 {
+		for kind := range kindSpecs {
+			kinds = append(kinds, kind)
+		}
 	}
 
 	var wg sync.WaitGroup
