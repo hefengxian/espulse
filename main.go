@@ -17,6 +17,7 @@ func main() {
 	}
 
 	// 启动后台采集：集群健康状态由后端定时收集，前端只读取快照
+	es.InitCollectorStore()
 	es.StartCollector()
 
 	r := router.SetupRouter()

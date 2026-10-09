@@ -20,11 +20,14 @@ type catalogResponse struct {
 
 // indicesResponse 是索引列表的返回结构：索引数量无上界，因此必须分页（见 PRD §10）。
 type indicesResponse struct {
-	Data      []es.Index `json:"data"`
-	Total     int        `json:"total"`
-	Page      int        `json:"page"`
-	PageSize  int        `json:"page_size"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	Data     []es.Index `json:"data"`
+	Total    int        `json:"total"`
+	Page     int        `json:"page"`
+	PageSize int        `json:"page_size"`
+	// RateWindowMs 是 data 中各条速率所用的差分窗口；0 表示尚未算出速率。
+	// 窗口随页面打开时长从 5s 长到 60s，前端须据此如实标注，不得当作稳定速率（见 PRD §11）。
+	RateWindowMs int64     `json:"rate_window_ms"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 const (
@@ -42,7 +45,8 @@ func ListNodes(c *gin.Context) {
 	respondCatalog(c, rows, updatedAt, ok)
 }
 
-// ListIndices 返回某集群的索引列表（支持 search / health / status 过滤与分页）。
+// ListIndices 返回某集群的索引列表（支持 search / health / status / hide_system 过滤与分页）。
+// hide_system=1 时隐藏 `.` 开头的系统索引（前端开关，默认开启）。
 // 过滤与分页都基于采集缓存，不额外请求 ES —— 万级索引下只是内存切片操作。
 func ListIndices(c *gin.Context) {
 	id := c.Param("id")
@@ -55,15 +59,15 @@ func ListIndices(c *gin.Context) {
 		c.JSON(http.StatusOK, indicesResponse{Data: []es.Index{}, UpdatedAt: updatedAt})
 		return
 	}
-	if rows == nil {
-		rows = []es.Index{}
+	if rows.Rows == nil {
+		rows.Rows = []es.Index{}
 	}
 
-	rows = filterIndices(rows, c.Query("search"), c.Query("health"), c.Query("status"))
-	rows = sortIndices(rows, c.Query("sort"), c.Query("order"))
+	filtered := filterIndices(rows.Rows, c.Query("search"), c.Query("health"), c.Query("status"), c.Query("hide_system") == "1")
+	filtered = sortIndices(filtered, c.Query("sort"), c.Query("order"))
 
 	page, pageSize := pagination(c)
-	total := len(rows)
+	total := len(filtered)
 	start := (page - 1) * pageSize
 	if start > total {
 		start = total
@@ -74,11 +78,12 @@ func ListIndices(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, indicesResponse{
-		Data:      rows[start:end],
-		Total:     total,
-		Page:      page,
-		PageSize:  pageSize,
-		UpdatedAt: updatedAt,
+		Data:         filtered[start:end],
+		Total:        total,
+		Page:         page,
+		PageSize:     pageSize,
+		RateWindowMs: rows.RateWindowMs,
+		UpdatedAt:    updatedAt,
 	})
 }
 
@@ -103,17 +108,20 @@ func ListAliases(c *gin.Context) {
 	respondCatalog(c, rows, updatedAt, ok)
 }
 
-// filterIndices 按名称子串 / health / status 过滤，空参数表示不过滤。
-func filterIndices(rows []es.Index, search, health, status string) []es.Index {
+// filterIndices 按名称子串 / health / status 过滤，空参数表示不过滤；hideSystem 额外隐藏 `.` 开头的系统索引。
+func filterIndices(rows []es.Index, search, health, status string, hideSystem bool) []es.Index {
 	search = strings.ToLower(strings.TrimSpace(search))
 	health = strings.TrimSpace(health)
 	status = strings.TrimSpace(status)
-	if search == "" && health == "" && status == "" {
+	if search == "" && health == "" && status == "" && !hideSystem {
 		return rows
 	}
 
 	out := make([]es.Index, 0, len(rows))
 	for _, idx := range rows {
+		if hideSystem && strings.HasPrefix(idx.Index, ".") {
+			continue
+		}
 		if search != "" && !strings.Contains(strings.ToLower(idx.Index), search) {
 			continue
 		}
@@ -151,6 +159,10 @@ func sortIndices(rows []es.Index, sortKey, order string) []es.Index {
 	case "health":
 		// 升序 = 严重在前（red → yellow → green）
 		less = func(i, j int) bool { return healthRank(out[i].Health) < healthRank(out[j].Health) }
+	case "index_rate", "search_rate":
+		less = func(i, j int) bool {
+			return rateOrZero(rateValue(out[i], key)) < rateOrZero(rateValue(out[j], key))
+		}
 	}
 
 	if desc {
@@ -158,8 +170,38 @@ func sortIndices(rows []es.Index, sortKey, order string) []es.Index {
 		less = func(i, j int) bool { return asc(j, i) }
 	}
 
+	// 速率缺失（样本不足）的行恒排最后，不随升降序翻转 —— 否则「降序看热点」会先看到一片空值
+	if key == "index_rate" || key == "search_rate" {
+		asc := less
+		less = func(i, j int) bool {
+			ni, nj := rateValue(out[i], key) == nil, rateValue(out[j], key) == nil
+			if ni != nj {
+				return !ni
+			}
+			if ni {
+				return false
+			}
+			return asc(i, j)
+		}
+	}
+
 	sort.SliceStable(out, less)
 	return out
+}
+
+// rateValue 取出索引的写入 / 搜索速率。样本不足时该字段为 nil。
+func rateValue(idx es.Index, key string) *float64 {
+	if key == "search_rate" {
+		return idx.SearchRate
+	}
+	return idx.IndexRate
+}
+
+func rateOrZero(rate *float64) float64 {
+	if rate == nil {
+		return 0
+	}
+	return *rate
 }
 
 func toInt64(value string) int64 {

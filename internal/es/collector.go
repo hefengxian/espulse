@@ -1,6 +1,7 @@
 package es
 
 import (
+	"encoding/json"
 	"log"
 	"sync"
 	"time"
@@ -53,14 +54,30 @@ type kindSpec struct {
 	// failed 判断「采集本身成功、但结果代表失败」的数据（如 status 的集群不可达）。
 	// 这类数据仍会作为最新快照返回，但会触发指数退避重试；nil 表示只依据 err 判定失败。
 	failed func(data any) bool
+	// decode 把落库的快照 JSON 还原成该 kind 的数据类型，供冷启动读取历史快照使用。
+	decode func(raw []byte) (any, error)
+	// decorate 可选：用历史样本为数据补充派生指标（如索引的写入 / 搜索速率）。
+	// 在采集 goroutine 中调用，返回值会成为新的快照（并随之落库）。
+	decorate func(clusterID string, data any) any
 }
 
 var kindSpecs = map[Kind]kindSpec{
-	KindStatus:  {interval: 5 * time.Second, fetch: fetchStatus, failed: statusFailed},
-	KindNodes:   {interval: 5 * time.Second, fetch: fetchNodes},
-	KindIndices: {interval: 5 * time.Second, fetch: fetchIndices},
-	KindShards:  {interval: 5 * time.Second, fetch: fetchShards},
-	KindAliases: {interval: 5 * time.Second, fetch: fetchAliases},
+	KindStatus:  {interval: 5 * time.Second, fetch: fetchStatus, failed: statusFailed, decode: decodeAs[Status]},
+	KindNodes:   {interval: 5 * time.Second, fetch: fetchNodes, decode: decodeAs[[]Node]},
+	KindIndices: {interval: 5 * time.Second, fetch: fetchIndices, decode: decodeAs[IndexList], decorate: decorateIndexRates},
+	KindShards:  {interval: 5 * time.Second, fetch: fetchShards, decode: decodeAs[[]Shard]},
+	KindAliases: {interval: 5 * time.Second, fetch: fetchAliases, decode: decodeAs[[]Alias]},
+}
+
+// decodeAs 返回一个把 JSON 解析为 T 的解码函数。
+// 快照载荷的具体类型由 kindSpecs 决定，因此这里必须解析成值类型（而非指针），
+// 才能让 GetStatus / GetNodes 里既有的类型断言继续成立。
+func decodeAs[T any](raw []byte) (any, error) {
+	var out T
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 const (
@@ -90,7 +107,8 @@ type entry struct {
 	lastAccess  time.Time // 最近一次被读取的时间，即「有人在看」的活跃信号
 	refreshing  bool
 	done        chan struct{}
-	failures    int // 连续失败次数，用于指数退避；任一次成功即归零
+	failures    int  // 连续失败次数，用于指数退避；任一次成功即归零
+	dbChecked   bool // 是否已尝试从落库快照恢复过，保证每个 entry 只查一次盘
 }
 
 // Collector 持有全部共享采集缓存。
@@ -98,9 +116,14 @@ type entry struct {
 type Collector struct {
 	mu      sync.Mutex
 	entries map[entryKey]*entry
+	// rings 是索引速率的样本环，按集群区分（只有 KindIndices 会用到）。
+	rings map[string]*indexRing
 }
 
-var collector = &Collector{entries: make(map[entryKey]*entry)}
+var collector = &Collector{
+	entries: make(map[entryKey]*entry),
+	rings:   make(map[string]*indexRing),
+}
 
 // StartCollector 启动采集调度器。
 //
@@ -113,6 +136,14 @@ func StartCollector() {
 			collector.sweep(time.Now())
 		}
 	}()
+}
+
+// InitCollectorStore 做一次落库数据的启动清理。
+// 长时间停机后 index_samples 里的样本早已出窗，启动时统一裁掉，避免历史残留持续占空间。
+func InitCollectorStore() {
+	if err := pruneAllIndexSamples(time.Now().Add(-rateWindow)); err != nil {
+		log.Printf("清理过期索引样本失败: %v", err)
+	}
 }
 
 // sweep 是调度器的一次扫描：淘汰无人查看的缓存，并按间隔刷新仍活跃的缓存。
@@ -135,13 +166,33 @@ func (c *Collector) sweep(now time.Time) {
 			startRefresh(e, key, spec)
 		}
 	}
+
+	c.dropIdleRingsLocked()
+}
+
+// dropIdleRingsLocked 释放已无任何缓存项的集群的样本环。
+// 调用方必须持有 c.mu。样本已落库，下次访问会重新载入，因此丢掉它没有损失。
+func (c *Collector) dropIdleRingsLocked() {
+	for clusterID := range c.rings {
+		alive := false
+		for key := range c.entries {
+			if key.clusterID == clusterID {
+				alive = true
+				break
+			}
+		}
+		if !alive {
+			delete(c.rings, clusterID)
+		}
+	}
 }
 
 // Get 读取某集群某类数据的共享缓存，同时把该缓存标记为活跃。
 // 语义（见 PRD §6.3）：
 //   - 有新鲜数据：直接返回，不触发 ES 请求；
 //   - 有过期数据：立即返回旧数据，同时后台刷新（stale-while-revalidate）；
-//   - 无数据：同步等待一次采集后返回（冷启动）。
+//   - 内存无数据、但落库有历史快照：立即返回历史快照，同时后台刷新（跨重启 / 跨空闲淘汰）；
+//   - 从未采集过（首次添加的集群）：同步等待一次采集后返回（冷启动）。
 //
 // 返回值为数据、数据时间、以及是否取到了数据。
 func (c *Collector) Get(clusterID string, kind Kind) (any, time.Time, bool) {
@@ -162,13 +213,57 @@ func (c *Collector) Get(clusterID string, kind Kind) (any, time.Time, bool) {
 		return data, at, true
 	}
 
-	// 冷启动：没有旧数据可返回，只能等这一次采集完成。
+	// 内存里没有（进程重启，或空闲超过 idleTTL 已被淘汰）：先看落库的历史快照。
+	// 只要历史上采集过，就先把它画出来再去刷新，不让人对着空页面等采集。
+	if data, at, ok := e.loadPersisted(key, spec); ok {
+		startRefresh(e, key, spec)
+		return data, at, true
+	}
+
+	// 真正没有历史数据可返回，只能等这一次采集完成。
 	// 已有 in-flight 采集时等它（单飞去重）；仍在失败退避窗口内则直接返回「暂无数据」，
 	// 避免页面轮询把退避绕过去、对挂掉的集群持续打 ES。
 	if e.refreshingNow() || e.shouldRefresh(spec, now) {
 		<-startRefresh(e, key, spec)
 	}
 	return e.read()
+}
+
+// loadPersisted 尝试把落库的历史快照恢复到内存缓存，供冷启动立即渲染。
+// 每个 entry 只尝试一次，避免页面轮询反复打库；读库或解析失败时按「无历史数据」处理。
+func (e *entry) loadPersisted(key entryKey, spec kindSpec) (any, time.Time, bool) {
+	if spec.decode == nil {
+		return nil, time.Time{}, false
+	}
+
+	e.mu.Lock()
+	if e.dbChecked {
+		e.mu.Unlock()
+		return nil, time.Time{}, false
+	}
+	e.dbChecked = true
+	e.mu.Unlock()
+
+	raw, at, ok := readSnapshotRaw(key.clusterID, key.kind)
+	if !ok {
+		return nil, time.Time{}, false
+	}
+	data, err := spec.decode(raw)
+	if err != nil {
+		log.Printf("落库快照解析失败 (cluster=%s, kind=%s): %v", key.clusterID, key.kind, err)
+		return nil, time.Time{}, false
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	// 期间可能有并发采集已经把内存填好了，以内存为准
+	if e.hasData {
+		return e.data, e.updatedAt, true
+	}
+	e.data = data
+	e.hasData = true
+	e.updatedAt = at
+	return data, at, true
 }
 
 // Activate 把某集群某类数据标记为活跃，并在需要时触发后台刷新，但不等待结果。
@@ -230,14 +325,19 @@ func StatusSnapshot(clusterIDs []string) map[string]Status {
 	return out
 }
 
-// Forget 丢弃某集群的全部缓存，避免已删除的集群残留在内存里。
+// Forget 丢弃某集群的全部缓存，避免已删除的集群残留在内存与磁盘里。
 func Forget(clusterID string) {
 	collector.mu.Lock()
-	defer collector.mu.Unlock()
 	for key := range collector.entries {
 		if key.clusterID == clusterID {
 			delete(collector.entries, key)
 		}
+	}
+	delete(collector.rings, clusterID)
+	collector.mu.Unlock()
+
+	if err := forgetSnapshots(clusterID); err != nil {
+		log.Printf("清理落库快照失败 (cluster=%s): %v", clusterID, err)
 	}
 }
 
@@ -370,7 +470,13 @@ func startRefresh(e *entry, key entryKey, spec kindSpec) <-chan struct{} {
 
 	go func() {
 		data, err := loadAndFetch(key.clusterID, spec)
+		// 派生指标（如索引速率）必须在采集线程里补，这样落库的快照本身就带着它，
+		// 冷启动时无需再等一轮样本就能显示（见 PRD §6.3）。
+		if err == nil && spec.decorate != nil {
+			data = spec.decorate(key.clusterID, data)
+		}
 
+		var fresh any
 		e.mu.Lock()
 		e.lastAttempt = time.Now()
 		switch {
@@ -384,18 +490,28 @@ func startRefresh(e *entry, key entryKey, spec kindSpec) <-chan struct{} {
 			e.hasData = true
 			e.updatedAt = e.lastAttempt
 			e.failures++
+			fresh = data
 			log.Printf("采集异常 (cluster=%s, kind=%s): 数据标记为失败，进入退避", key.clusterID, key.kind)
 		default:
 			e.data = data
 			e.hasData = true
 			e.updatedAt = e.lastAttempt
 			e.failures = 0
+			fresh = data
 		}
+		at := e.updatedAt
 		e.refreshing = false
 		e.done = nil
 		e.mu.Unlock()
 
+		// 先放行等待者，再落库：落库耗时不该算在「首屏等待」里。
 		close(ch)
+
+		if fresh != nil {
+			if err := saveSnapshot(key.clusterID, key.kind, fresh, at); err != nil {
+				log.Printf("快照落库失败 (cluster=%s, kind=%s): %v", key.clusterID, key.kind, err)
+			}
+		}
 	}()
 
 	return ch

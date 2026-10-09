@@ -34,6 +34,25 @@ type Index struct {
 	Rep        string `json:"rep"`
 	DocsCount  string `json:"docs.count"`
 	StoreBytes string `json:"store.size"` // 字节数（查询带 bytes=b），便于汇总
+
+	// IndexTotal / SearchTotal 是累计计数器（单位：次），仅用于差分出写入 / 搜索速率。
+	IndexTotal  string `json:"indexing.index_total"`
+	SearchTotal string `json:"search.query_total"`
+
+	// 以下为采集器用样本环算出的派生速率；样本不足时为 nil，前端显示 "—"（见 PRD §11）。
+	IndexRate  *float64 `json:"index_rate,omitempty"`
+	SearchRate *float64 `json:"search_rate,omitempty"`
+	DocsRate   *float64 `json:"docs_rate,omitempty"`
+}
+
+// IndexList 是 KindIndices 的快照载荷：索引行 + 这批速率的实际窗口。
+//
+// 窗口会随页面打开时长从一个采集间隔逐步长到 rateWindow，因此必须如实上报 ——
+// 否则前端会把 5s 窗口的毛刺当成稳定速率（见 PRD §6.3）。
+type IndexList struct {
+	Rows []Index `json:"rows"`
+	// RateWindowMs 是实际参与差分的窗口长度；0 表示本轮尚未算出任何速率。
+	RateWindowMs int64 `json:"rate_window_ms"`
 }
 
 // Shard 是 _cat/shards 的一行。
@@ -69,10 +88,16 @@ func fetchNodes(cluster models.Cluster) (any, error) {
 func fetchIndices(cluster models.Cluster) (any, error) {
 	query := url.Values{}
 	query.Set("format", "json")
-	query.Set("h", "index,health,status,pri,rep,docs.count,store.size")
+	// indexing.index_total / search.query_total 是 6.x 起就存在的 _cat 列，
+	// 用于就地差分出写入 / 搜索速率，无需另调 _stats（见 PRD §11）。
+	query.Set("h", "index,health,status,pri,rep,docs.count,store.size,indexing.index_total,search.query_total")
 	query.Set("s", "index")
 	query.Set("bytes", "b") // store.size 以字节返回，便于直接汇总
-	return fetchCat[Index](cluster, "/_cat/indices", query)
+	rows, err := fetchCatRows[Index](cluster, "/_cat/indices", query)
+	if err != nil {
+		return nil, err
+	}
+	return IndexList{Rows: rows}, nil
 }
 
 func fetchShards(cluster models.Cluster) (any, error) {
@@ -117,13 +142,19 @@ func fetchAliases(cluster models.Cluster) (any, error) {
 	return fallback, nil
 }
 
-// fetchCat 向 _cat API 取一份 JSON 列表。泛型仅用于省掉三次重复的解析样板。
-func fetchCat[T any](cluster models.Cluster, path string, query url.Values) (any, error) {
+// fetchCatRows 向 _cat API 取一份 JSON 列表并解析为具体类型。
+func fetchCatRows[T any](cluster models.Cluster, path string, query url.Values) ([]T, error) {
 	var rows []T
 	if err := TargetFromCluster(cluster).getJSON(CatalogClient, path, query, &rows); err != nil {
 		return nil, err
 	}
 	return rows, nil
+}
+
+// fetchCat 与 fetchCatRows 相同，但以 any 返回。
+// _cat 列表的消费方（缓存、落库、HTTP 层）都以 any 传递，泛型仅用于省掉重复的解析样板。
+func fetchCat[T any](cluster models.Cluster, path string, query url.Values) (any, error) {
+	return fetchCatRows[T](cluster, path, query)
 }
 
 // GetNodes 读取某集群的节点列表，并把该集群标记为活跃（见 PRD §6.3）。
@@ -141,16 +172,17 @@ func GetNodes(clusterID string) ([]Node, time.Time, bool) {
 }
 
 // GetIndices 读取某集群的索引列表，并把该集群标记为活跃。
-func GetIndices(clusterID string) ([]Index, time.Time, bool) {
+// 返回值里的 Rows 是索引行，RateWindowMs 是这批速率的实际窗口（见 IndexList）。
+func GetIndices(clusterID string) (IndexList, time.Time, bool) {
 	data, at, has := collector.Get(clusterID, KindIndices)
 	if !has {
-		return nil, at, false
+		return IndexList{}, at, false
 	}
-	rows, ok := data.([]Index)
+	list, ok := data.(IndexList)
 	if !ok {
-		return nil, at, false
+		return IndexList{}, at, false
 	}
-	return rows, at, true
+	return list, at, true
 }
 
 // GetShards 读取某集群的分片列表，并把该集群标记为活跃。
@@ -165,6 +197,7 @@ func GetShards(clusterID string) ([]Shard, time.Time, bool) {
 	}
 	return rows, at, true
 }
+
 // GetAliases 读取某集群的索引别名列表，并把该集群标记为活跃。
 func GetAliases(clusterID string) ([]Alias, time.Time, bool) {
 	data, at, has := collector.Get(clusterID, KindAliases)

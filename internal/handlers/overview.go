@@ -113,7 +113,7 @@ func GetOverview(c *gin.Context) {
 
 	var (
 		nodes         []es.Node
-		indices       []es.Index
+		indexList     es.IndexList
 		shards        []es.Shard
 		nodesLoaded   bool
 		indicesLoaded bool
@@ -124,9 +124,11 @@ func GetOverview(c *gin.Context) {
 	var wg sync.WaitGroup
 	wg.Add(3)
 	go func() { defer wg.Done(); nodes, _, nodesLoaded = es.GetNodes(clusterID) }()
-	go func() { defer wg.Done(); indices, _, indicesLoaded = es.GetIndices(clusterID) }()
+	go func() { defer wg.Done(); indexList, _, indicesLoaded = es.GetIndices(clusterID) }()
 	go func() { defer wg.Done(); shards, _, shardsLoaded = es.GetShards(clusterID) }()
 	wg.Wait()
+
+	indices := indexList.Rows
 
 	resp := overviewResponse{
 		Reachable:     true,
