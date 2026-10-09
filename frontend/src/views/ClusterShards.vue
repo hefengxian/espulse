@@ -271,7 +271,7 @@ const chipTip = (s: EsShard) => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 p-6">
     <!-- 页头 -->
     <div class="flex items-center gap-2.5 flex-wrap">
       <div class="flex-1 min-w-0">

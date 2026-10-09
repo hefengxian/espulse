@@ -246,7 +246,7 @@ onDeactivated(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-5">
+  <div class="flex flex-col gap-5 p-6">
     <!-- 页头 -->
     <div class="flex items-center gap-2.5">
       <div class="flex-1">

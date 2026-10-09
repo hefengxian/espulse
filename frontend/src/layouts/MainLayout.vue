@@ -131,7 +131,7 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <div id="content" class="esp-content flex-1 overflow-y-auto overflow-x-hidden p-6 bg-bg">
+    <div id="content" class="esp-content flex-1 overflow-y-auto overflow-x-hidden bg-bg">
       <!-- Console 是唯一有状态的模块，必须保活；其余模块的轮询已迁到 onActivated / onDeactivated -->
       <router-view v-slot="{ Component }">
         <keep-alive>
