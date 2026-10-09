@@ -81,12 +81,7 @@ const saveCode = (id: string | undefined, value: string) => {
 
 const code = ref(readCode(clusterId.value))
 
-const response = ref(`{
-  "cluster_name": "prod-us-east-1",
-  "status": "green",
-  "timed_out": false,
-  "number_of_nodes": 3
-}`)
+const response = ref('')
 
 // Monaco 每次按键都会更新 code，逐次写 localStorage 过于频繁，做防抖并在失活时强制落盘
 let codeSaveTimer: number | undefined
@@ -141,7 +136,7 @@ const MONO_FONT = getComputedStyle(document.documentElement)
 
 const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
   minimap: { enabled: false },
-  fontSize: 13,
+  fontSize: 12,
   lineNumbers: 'on',
   lineNumbersMinChars: 1,
   glyphMargin: true,
@@ -150,7 +145,7 @@ const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
   automaticLayout: true,
   theme: 'vs-dark',
   fontFamily: MONO_FONT,
-  lineHeight: 22,
+  lineHeight: 18,
   padding: { top: 12 },
   wordWrap: 'on',
   formatOnPaste: true,

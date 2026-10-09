@@ -52,6 +52,8 @@
 
 #### Dev Console 编辑保持
 - **Frontend**: Dev Console 编辑器内容**按集群持久化**（`espulse:console-code:<clusterId>`，localStorage）—— 此前内容只存在组件内，`keep-alive` 复用同一实例导致 A 集群的草稿串到 B 集群，且刷新即丢。现在切集群先落盘旧草稿、再载入新草稿，刷新 / 重开自动恢复；写入做 300ms 防抖并在 `onDeactivated` / `onBeforeUnmount` 强制落盘（与 Kibana Console 历史存 localStorage 的思路一致）。`response` 不持久化，切集群时一并清空上一集群的执行结果，避免出现「B 集群的编辑 + A 集群的结果」这种不一致。
+- **Frontend**: Monaco 编辑器**字号 / 行高由 13px / 22px 收敛为 12px / 18px**，与命令目录（Navigator）的 `text-12px`（根 `line-height: 1.5` → 18px）对齐 —— 字族本就同为 JetBrains Mono，此前只是编辑器大一号、行距更松，两者观感割裂。结果面板复用 `editorOptions`，一并生效。
+- **Frontend**: 结果面板（Response）**初始为空** —— 去掉此前硬编码的示例 JSON，进入页面不再展示假数据（`resultLanguage` 对空串回落到纯文本，不影响高亮逻辑）。
 
 ### 2026-10-02
 - **Docs**: 明确 Overview 与分片分布的职责边界（PRD §6.1 / §6.2）—— Overview 定位为「状态仪表盘 + 问题清单」的分诊台；Cerebro 式「节点 × 索引」分片矩阵下沉为独立的分片分布页，支持「按索引 / 按节点」视角与过滤。
