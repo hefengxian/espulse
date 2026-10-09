@@ -54,6 +54,9 @@
 - **Frontend**: Dev Console 编辑器内容**按集群持久化**（`espulse:console-code:<clusterId>`，localStorage）—— 此前内容只存在组件内，`keep-alive` 复用同一实例导致 A 集群的草稿串到 B 集群，且刷新即丢。现在切集群先落盘旧草稿、再载入新草稿，刷新 / 重开自动恢复；写入做 300ms 防抖并在 `onDeactivated` / `onBeforeUnmount` 强制落盘（与 Kibana Console 历史存 localStorage 的思路一致）。`response` 不持久化，切集群时一并清空上一集群的执行结果，避免出现「B 集群的编辑 + A 集群的结果」这种不一致。
 - **Frontend**: Monaco 编辑器**字号 / 行高由 13px / 22px 收敛为 12px / 18px**，与命令目录（Navigator）的 `text-12px`（根 `line-height: 1.5` → 18px）对齐 —— 字族本就同为 JetBrains Mono，此前只是编辑器大一号、行距更松，两者观感割裂。结果面板复用 `editorOptions`，一并生效。
 - **Frontend**: 结果面板（Response）**初始为空** —— 去掉此前硬编码的示例 JSON，进入页面不再展示假数据（`resultLanguage` 对空串回落到纯文本，不影响高亮逻辑）。
+- **Frontend**: 结果面板顶部新增**复制按钮** —— 一键把返回结果写入剪贴板，成功后图标短暂变为对勾作反馈；结果为空时按钮置灰禁用。
+- **Frontend**: 移除编辑器头部的 `Format` 按钮，改为 **Monaco 原生 action** —— 右键菜单「Format Document」+ 快捷键 `⇧⌥F`（Mac）/ `Shift+Alt+F`。文档级操作不再独占头部栏，头部回归「文件名 + 命令数」。
+- **Frontend**: 编辑区与结果面板的**头部栏统一为固定 32px（`h-8`）并垂直居中** —— 此前两端靠各自 `p-2.5` 撑高，且撑高来源不同（编辑器是文件名文字、结果面板是复制按钮），高度差约 5px，横向 padding 也不一致（`px-4` vs `px-3.5`）。现抽成共享 shortcut `panel-header`（`h-8 flex items-center px-3 border-b border-border bg-bg-2`），两端只写差异部分，避免再次漂移。
 
 ### 2026-10-02
 - **Docs**: 明确 Overview 与分片分布的职责边界（PRD §6.1 / §6.2）—— Overview 定位为「状态仪表盘 + 问题清单」的分诊台；Cerebro 式「节点 × 索引」分片矩阵下沉为独立的分片分布页，支持「按索引 / 按节点」视角与过滤。

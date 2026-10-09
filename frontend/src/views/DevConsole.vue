@@ -420,6 +420,18 @@ const handleMount = (editor: any) => {
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
     runCommand()
   })
+
+  // Format 作为编辑器原生 action：进右键菜单 + 快捷键（⇧⌥F / Shift+Alt+F），不再占用头部栏
+  editor.addAction({
+    id: 'espulse.formatDocument',
+    label: 'Format Document',
+    keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
+    contextMenuGroupId: '1_modification',
+    contextMenuOrder: 1.5,
+    run: () => {
+      formatCode()
+    }
+  })
 }
 
 interface ESCommand {
@@ -566,6 +578,21 @@ const formatCode = () => {
   
   editorRef.value.setValue(newContent.join('\n'))
 }
+
+// 复制结果面板内容：成功后短暂显示对勾反馈
+const copied = ref(false)
+let copiedTimer: number | undefined
+const copyResponse = async () => {
+  if (!response.value) return
+  try {
+    await navigator.clipboard.writeText(response.value)
+    copied.value = true
+    if (copiedTimer) window.clearTimeout(copiedTimer)
+    copiedTimer = window.setTimeout(() => { copied.value = false }, 1200)
+  } catch {
+    // 剪贴板不可用（无权限 / 非安全上下文）时静默失败
+  }
+}
 </script>
 
 
@@ -647,15 +674,8 @@ const formatCode = () => {
       <template #1>
         <!-- Editor Area -->
         <div id="editor-area" class="h-full flex flex-col overflow-hidden bg-bg">
-          <div class="flex items-center gap-2 p-2.5 px-4 border-b border-border bg-bg-2 flex-shrink-0">
+          <div class="panel-header gap-2">
             <span class="text-12.5px font-600 text-text-2 flex-1">console.es &nbsp;<span class="text-text-3 font-400 text-11.5px">· {{ outline.length }} commands</span></span>
-            <button
-              class="flex items-center gap-1.25 p-1.25 px-3 rounded-6px border border-border bg-transparent text-text-2 font-sans text-12.5px cursor-pointer transition-all hover:bg-bg-3 hover:text-text"
-              @click="formatCode"
-            >
-              <div class="w-3.25 h-3.25 i-lucide-align-left"></div>
-              Format
-            </button>
           </div>
 
           <div class="flex-1 relative overflow-hidden">
@@ -673,15 +693,25 @@ const formatCode = () => {
       <template #2>
         <!-- Result Panel (RIGHT)：只区分 JSON / 纯文本 -->
         <div id="result-panel" class="h-full bg-bg-2 flex flex-col overflow-hidden">
-          <div class="flex items-center justify-between p-2.5 px-3.5 border-b border-border flex-shrink-0">
+          <div class="panel-header justify-between">
             <span class="text-12px font-600 tracking-0.04em uppercase text-text-3">Response</span>
-            <span v-if="isLoading" class="text-11.5px font-mono text-text-3 flex items-center gap-1.25">
-              <div class="w-3 h-3 i-lucide-loader animate-spin"></div>
-              Running…
-            </span>
-            <span v-else-if="requestStatus" class="text-11.5px font-mono" :class="requestStatus < 400 ? 'text-green' : 'text-red'">
-              {{ requestStatus }} · {{ requestDuration }}ms
-            </span>
+            <div class="flex items-center gap-2">
+              <span v-if="isLoading" class="text-11.5px font-mono text-text-3 flex items-center gap-1.25">
+                <div class="w-3 h-3 i-lucide-loader animate-spin"></div>
+                Running…
+              </span>
+              <span v-else-if="requestStatus" class="text-11.5px font-mono" :class="requestStatus < 400 ? 'text-green' : 'text-red'">
+                {{ requestStatus }} · {{ requestDuration }}ms
+              </span>
+              <button
+                class="flex items-center justify-center w-6 h-6 rounded-6px border border-border bg-transparent text-text-2 cursor-pointer transition-all hover:bg-bg-3 hover:text-text disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent"
+                :disabled="!response"
+                :title="copied ? '已复制' : '复制结果'"
+                @click="copyResponse"
+              >
+                <div class="w-3.25 h-3.25" :class="copied ? 'i-lucide-check text-green' : 'i-lucide-copy'"></div>
+              </button>
+            </div>
           </div>
           <div class="flex-1 relative overflow-hidden">
             <vue-monaco-editor

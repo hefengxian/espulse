@@ -12,6 +12,8 @@ export default defineConfig({
   shortcuts: [
     ['flex-center', 'flex items-center justify-center'],
     ['btn-icon', 'w-8 h-8 rounded-7px border border-border bg-transparent text-text-2 flex-center cursor-pointer transition-all hover:bg-bg-3 hover:text-text hover:border-border-2'],
+    // Dev Console 编辑区 / 结果面板的头部栏：固定高度 + 垂直居中，避免两端各自 padding 撑出不同高度
+    ['panel-header', 'h-8 flex items-center px-3 border-b border-border bg-bg-2 flex-shrink-0'],
     // 分片分布矩阵里的分片方块
     ['chip', 'w-4 h-4 rounded-3px text-10px font-mono flex-center leading-none flex-shrink-0'],
   ],
