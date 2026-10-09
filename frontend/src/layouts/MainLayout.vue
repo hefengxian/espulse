@@ -1,135 +1,143 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { useClusterStore } from '../stores/cluster'
+import { useGlobalRefresh } from '../composables/useGlobalRefresh'
+import { formatAge, isStale } from '../utils/freshness'
+import ClusterSwitcher from '../components/ClusterSwitcher.vue'
+
+const THEME_KEY = 'espulse:theme'
 
 const router = useRouter()
 const route = useRoute()
 const clusterStore = useClusterStore()
+const { loaded } = storeToRefs(clusterStore)
 
-const isCollapsed = ref(false)
-const isDark = ref(true)
+const { handler, refreshing, updatedAt, triggerRefresh } = useGlobalRefresh()
 
 // 活动集群由 URL 决定（/cluster/:id/...），不再使用隐式的全局选择状态
 const clusterId = computed(() => route.params.id as string | undefined)
 const currentCluster = computed(() => clusterStore.clusterById(clusterId.value))
 
-interface NavItem {
-  id: string
-  label: string
-  icon: string
-  path: string
-}
+const isDark = ref(true)
 
-// 集群相关入口只在进入某个集群后出现
-const navItems = computed<NavItem[]>(() => {
-  const items: NavItem[] = []
-  const id = clusterId.value
+// 数据新鲜度常驻顶栏（见 PRD §2.4「像行情看板」）
+const now = ref(Date.now())
+let ticker: number | undefined
 
-  if (id) {
-    items.push({ id: 'overview', label: 'Overview', icon: 'i-lucide-layout-grid', path: `/cluster/${id}/overview` })
-    items.push({ id: 'indices', label: 'Indices', icon: 'i-lucide-list', path: `/cluster/${id}/indices` })
-    items.push({ id: 'shards', label: 'Shards', icon: 'i-lucide-grid-3x3', path: `/cluster/${id}/shards` })
-    items.push({ id: 'console', label: 'Dev Console', icon: 'i-lucide-terminal', path: `/cluster/${id}/console` })
-  }
+const freshnessText = computed(() => formatAge(updatedAt.value, now.value))
+const stale = computed(() => isStale(updatedAt.value, now.value, 15000))
 
-  items.push({ id: 'clusters', label: 'Clusters', icon: 'i-lucide-layers', path: '/' })
-  return items
-})
+// 模块是同一集群下的平级视图，横向 Tab 才是它们的正确表达（见 PRD §2.5）
+const MODULES = [
+  { id: 'overview', label: 'Overview', path: 'overview' },
+  { id: 'indices', label: 'Indices', path: 'indices' },
+  { id: 'shards', label: 'Shards', path: 'shards' },
+  { id: 'console', label: 'Dev Console', path: 'console' },
+]
 
-const toggleSidebar = () => {
-  isCollapsed.value = !isCollapsed.value
-}
+const modules = computed(() =>
+  clusterId.value
+    ? MODULES.map(item => ({ ...item, to: `/cluster/${clusterId.value}/${item.path}` }))
+    : [],
+)
+
+const isActive = (to: string) => route.path === to
 
 const toggleTheme = () => {
   isDark.value = !isDark.value
-  document.documentElement.classList.toggle('light', !isDark.value)
-  document.documentElement.classList.toggle('dark', isDark.value)
+  applyTheme()
 }
 
-const setActive = (path: string) => {
-  router.push(path)
+function applyTheme() {
+  document.documentElement.classList.toggle('light', !isDark.value)
+  document.documentElement.classList.toggle('dark', isDark.value)
+  try {
+    localStorage.setItem(THEME_KEY, isDark.value ? 'dark' : 'light')
+  } catch {
+    // 存不下就退化为仅本次会话有效
+  }
 }
 
 onMounted(async () => {
-  document.documentElement.classList.add('dark')
+  try {
+    isDark.value = localStorage.getItem(THEME_KEY) !== 'light'
+  } catch {
+    isDark.value = true
+  }
+  applyTheme()
+
+  ticker = window.setInterval(() => { now.value = Date.now() }, 5000)
+
   try {
     await clusterStore.fetchClusters()
   } catch {
     // 集群列表加载失败由 Cluster Hub 自行提示
   }
 })
+
+// 集群已被删除、URL 又是旧链接（历史 / 书签）时统一收敛回列表，
+// 避免渲染出一套点进去是空白的模块 Tab
+watch([loaded, clusterId, () => clusterStore.clusters.length], () => {
+  if (loaded.value && clusterId.value && !currentCluster.value) router.replace('/')
+})
+
+onBeforeUnmount(() => {
+  if (ticker) window.clearInterval(ticker)
+})
 </script>
 
 <template>
-  <div class="esp-app-container h-screen flex overflow-hidden font-sans bg-bg text-text antialiased">
-    <!-- Sidebar -->
-    <aside
-      id="sidebar"
-      :class="[{ 'w-56 min-w-56': !isCollapsed, 'w-14 min-w-14': isCollapsed }, 'esp-sidebar']"
-      class="bg-bg-2 border-r border-border flex flex-col transition-all duration-220 z-10 flex-shrink-0 overflow-hidden"
-    >
-      <div class="esp-sidebar-header h-13 flex items-center gap-2.5 px-3.5 border-b border-border flex-shrink-0">
-        <div class="w-7 h-7 flex-shrink-0 bg-gradient-to-br from-accent to-purple-600 rounded-7px flex items-center justify-center shadow-[0_0_16px_var(--esp-accent-glow)]">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <circle cx="7" cy="7" r="3" fill="white" opacity=".9" />
-            <circle cx="7" cy="7" r="6" stroke="white" stroke-width="1" opacity=".4" />
-          </svg>
-        </div>
-        <span v-if="!isCollapsed" class="font-600 text-15px tracking--0.3px whitespace-nowrap overflow-hidden transition-opacity duration-180">
-          ESPulse
-        </span>
+  <div class="esp-app-container h-screen flex flex-col overflow-hidden font-sans bg-bg text-text antialiased">
+    <header class="esp-header h-13 bg-bg-2 flex items-center gap-2.5 px-4 flex-shrink-0">
+      <div class="w-7 h-7 flex-shrink-0 bg-gradient-to-br from-accent to-purple-600 rounded-7px flex items-center justify-center shadow-[0_0_16px_var(--esp-accent-glow)]">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="3" fill="white" opacity=".9" />
+          <circle cx="7" cy="7" r="6" stroke="white" stroke-width="1" opacity=".4" />
+        </svg>
       </div>
 
-      <div class="esp-sidebar-nav p-2 pt-0 flex-1 overflow-hidden">
-        <div v-if="!isCollapsed" class="text-10.5px font-500 tracking-0.08em text-text-3 uppercase p-2 pb-1 whitespace-nowrap overflow-hidden transition-opacity">
-          Navigation
-        </div>
-        <div
-          v-for="item in navItems"
-          :key="item.id"
-          class="flex items-center gap-2.5 p-1.75 px-2 rounded-6px cursor-pointer text-text-2 transition-all duration-120 whitespace-nowrap relative hover:bg-bg-3 hover:text-text"
-          :class="{ '!bg-accent-glow !text-accent': route.path === item.path }"
-          @click="setActive(item.path)"
-        >
-          <div :class="[item.icon, { 'text-accent': route.path === item.path }]" class="w-4 h-4 flex-shrink-0"></div>
-          <span v-if="!isCollapsed" class="text-13.5px font-500 overflow-hidden transition-opacity">
+      <!-- 层 1：我在看哪个集群 -->
+      <ClusterSwitcher />
+
+      <template v-if="modules.length">
+        <div class="w-px h-5 bg-border mx-0.5 flex-shrink-0"></div>
+
+        <!-- 层 2：我在看哪个维度 -->
+        <nav class="flex items-center gap-0.5">
+          <button
+            v-for="item in modules"
+            :key="item.id"
+            class="px-2.5 py-1 rounded-6px text-13px font-500 transition-all"
+            :class="isActive(item.to) ? 'bg-accent-glow color-accent' : 'text-text-2 hover:bg-bg-3 hover:text-text'"
+            @click="router.push(item.to)"
+          >
             {{ item.label }}
-          </span>
-        </div>
-      </div>
+          </button>
+        </nav>
+      </template>
 
-      <div class="esp-sidebar-footer p-2 border-t border-border flex-shrink-0">
-        <button class="flex items-center justify-center w-full p-1.75 px-2 rounded-6px cursor-pointer text-text-3 transition-all duration-120 border-none bg-transparent hover:bg-bg-3 hover:text-text" @click="toggleSidebar">
-          <div class="w-4 h-4 transition-transform duration-220 i-lucide-panel-left-close" :class="{ 'rotate-180': isCollapsed }"></div>
+      <div class="ml-auto flex items-center gap-2.5 flex-shrink-0">
+        <span v-if="clusterId" class="text-11.5px" :class="stale ? 'color-yellow' : 'text-text-3'">
+          {{ freshnessText }}<template v-if="stale"> · 正在刷新…</template>
+        </span>
+        <button class="btn-icon" :disabled="!handler" title="刷新当前集群" @click="triggerRefresh">
+          <div class="w-3.75 h-3.75" :class="refreshing ? 'i-lucide-loader-circle animate-spin' : 'i-lucide-refresh-cw'"></div>
+        </button>
+        <button class="btn-icon" :title="isDark ? '切换到浅色' : '切换到深色'" @click="toggleTheme">
+          <div class="w-3.75 h-3.75" :class="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"></div>
         </button>
       </div>
-    </aside>
+    </header>
 
-    <!-- Main Content Area -->
-    <div id="main" class="esp-main-container flex-1 flex flex-col overflow-hidden min-w-0">
-      <header class="esp-header h-13 bg-bg-2 border-b border-border flex items-center gap-2.5 px-4 flex-shrink-0">
-        <div
-          class="esp-header-left flex items-center gap-2 p-1.25 px-2.5 rounded-7px border border-border bg-bg cursor-pointer transition-all hover:border-border-2"
-          @click="router.push('/')"
-        >
-          <div
-            class="w-2 h-2 rounded-full flex-shrink-0"
-            :style="{ backgroundColor: currentCluster ? `var(--esp-${currentCluster.color || 'green'})` : 'var(--esp-text-3)' }"
-          ></div>
-          <span class="text-13px font-500 flex-1">{{ currentCluster?.name || '集群' }}</span>
-        </div>
-
-        <div class="esp-header-right flex items-center gap-1.5 ml-auto">
-          <button class="w-8 h-8 rounded-7px border border-border bg-transparent text-text-2 flex items-center justify-center cursor-pointer transition-all hover:bg-bg-3 hover:text-text hover:border-border-2" @click="toggleTheme">
-            <div class="w-3.75 h-3.75" :class="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"></div>
-          </button>
-        </div>
-      </header>
-
-      <div id="content" class="esp-content flex-1 overflow-y-auto overflow-x-hidden p-6 bg-bg">
-        <router-view />
-      </div>
+    <div id="content" class="esp-content flex-1 overflow-y-auto overflow-x-hidden p-6 bg-bg">
+      <!-- Console 是唯一有状态的模块，必须保活；其余模块的轮询已迁到 onActivated / onDeactivated -->
+      <router-view v-slot="{ Component }">
+        <keep-alive>
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </div>
   </div>
 </template>
