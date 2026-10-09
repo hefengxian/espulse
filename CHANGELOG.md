@@ -50,6 +50,9 @@
 - **Docs**: 同步 PRD（Phase 1 索引列表行、§6.2 过滤说明）与 TASKS 看板 —— 记录「默认隐藏 `.` 开头的系统索引」，并明确分片页该开关只作用于索引轴、顶部汇总仍是整个集群的数字。
 - **Docs**: TASKS 看板同步 —— 多 host 故障转移与索引别名移入已完成，节点列表标注为「并入总览、取消单独设页」。
 
+#### Dev Console 编辑保持
+- **Frontend**: Dev Console 编辑器内容**按集群持久化**（`espulse:console-code:<clusterId>`，localStorage）—— 此前内容只存在组件内，`keep-alive` 复用同一实例导致 A 集群的草稿串到 B 集群，且刷新即丢。现在切集群先落盘旧草稿、再载入新草稿，刷新 / 重开自动恢复；写入做 300ms 防抖并在 `onDeactivated` / `onBeforeUnmount` 强制落盘（与 Kibana Console 历史存 localStorage 的思路一致）。`response` 不持久化，切集群时一并清空上一集群的执行结果，避免出现「B 集群的编辑 + A 集群的结果」这种不一致。
+
 ### 2026-10-02
 - **Docs**: 明确 Overview 与分片分布的职责边界（PRD §6.1 / §6.2）—— Overview 定位为「状态仪表盘 + 问题清单」的分诊台；Cerebro 式「节点 × 索引」分片矩阵下沉为独立的分片分布页，支持「按索引 / 按节点」视角与过滤。
 - **Docs**: 确立采集模型（PRD §6.3 / ARCHITECTURE §4）—— 由「无条件定时全量采集」改为「按需激活的共享采集」：按 `(集群, kind)` 维护共享缓存，单飞去重保证 N 个并发用户只打一次 ES，`lastAccess` 空闲淘汰保证无人查看时停止采集；活跃信号采用轮询心跳，`_cat/shards` 等重接口在页面活跃期间随其他 kind 定时共享刷新。

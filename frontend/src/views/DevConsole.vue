@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, watch, computed } from 'vue'
+import { ref, shallowRef, watch, computed, onDeactivated, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { VueMonacoEditor, loader } from '@guolao/vue-monaco-editor'
 import * as monaco from 'monaco-editor'
@@ -52,18 +52,34 @@ const isLoading = ref(false)
 const requestDuration = ref(0)
 const requestStatus = ref<number | null>(null)
 
-// Watch for cluster change to fetch metadata
-watch(clusterId, (newId) => {
-  if (newId) {
-    metadataStore.fetchIndices(newId)
-  }
-}, { immediate: true })
-
-const code = ref(`# 1 — Cluster health
+// 编辑器内容按集群保存（key: espulse:console-code:<clusterId>）：切集群各自独立、刷新/重开自动恢复
+const DEFAULT_CODE = `# 1 — Cluster health
 GET /_cluster/health
 
 # 2 — Yellow shard query
-GET /_cat/shards?v&h=index,shard,prirep,state`)
+GET /_cat/shards?v&h=index,shard,prirep,state`
+
+const CODE_KEY_PREFIX = 'espulse:console-code:'
+const codeKey = (id: string) => `${CODE_KEY_PREFIX}${id}`
+
+const readCode = (id: string | undefined): string => {
+  if (!id) return DEFAULT_CODE
+  try {
+    return localStorage.getItem(codeKey(id)) ?? DEFAULT_CODE
+  } catch {
+    return DEFAULT_CODE
+  }
+}
+const saveCode = (id: string | undefined, value: string) => {
+  if (!id) return
+  try {
+    localStorage.setItem(codeKey(id), value)
+  } catch {
+    // 存不下就退化为仅本次会话有效
+  }
+}
+
+const code = ref(readCode(clusterId.value))
 
 const response = ref(`{
   "cluster_name": "prod-us-east-1",
@@ -71,6 +87,41 @@ const response = ref(`{
   "timed_out": false,
   "number_of_nodes": 3
 }`)
+
+// Monaco 每次按键都会更新 code，逐次写 localStorage 过于频繁，做防抖并在失活时强制落盘
+let codeSaveTimer: number | undefined
+const flushCode = () => {
+  if (codeSaveTimer) {
+    window.clearTimeout(codeSaveTimer)
+    codeSaveTimer = undefined
+  }
+  saveCode(clusterId.value, code.value)
+}
+watch(code, () => {
+  if (codeSaveTimer) window.clearTimeout(codeSaveTimer)
+  codeSaveTimer = window.setTimeout(flushCode, 300)
+})
+onDeactivated(flushCode)
+onBeforeUnmount(flushCode)
+
+// 切集群：先落盘旧集群草稿，再载入新集群草稿并清空上一集群的结果，避免集群间互相串内容
+watch(clusterId, (newId, oldId) => {
+  if (codeSaveTimer) {
+    window.clearTimeout(codeSaveTimer)
+    codeSaveTimer = undefined
+  }
+  if (oldId) {
+    saveCode(oldId, code.value)
+    response.value = ''
+    requestStatus.value = null
+    requestDuration.value = 0
+    activeLine.value = 0
+  }
+  code.value = readCode(newId)
+  if (newId) {
+    metadataStore.fetchIndices(newId)
+  }
+}, { immediate: true })
 
 // Response 只区分 JSON 与纯文本：能解析成 JSON 就按 JSON 高亮，否则按纯文本渲染
 const resultLanguage = computed(() => {
