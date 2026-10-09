@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { NButton } from 'naive-ui'
+import { NButton, NTooltip } from 'naive-ui'
 import { useClusterStore } from '../stores/cluster'
 import { overviewApi, type Overview } from '../api/overview'
 
@@ -251,7 +251,6 @@ const usageClass = (value: string | undefined, high: number, mid: number) => {
               <thead>
                 <tr class="text-text-3 text-left">
                   <th class="px-4 py-2 font-500">名称</th>
-                  <th class="px-3 py-2 font-500">角色</th>
                   <th class="px-3 py-2 font-500">Heap</th>
                   <th class="px-3 py-2 font-500">CPU</th>
                   <th class="px-3 py-2 font-500" title="1 分钟 / 5 分钟 / 15 分钟系统平均负载">负载 (1/5/15m)</th>
@@ -262,10 +261,14 @@ const usageClass = (value: string | undefined, high: number, mid: number) => {
               <tbody>
                 <tr v-for="node in overview.nodes" :key="node.name" class="border-t border-border">
                   <td class="px-4 py-2 font-mono">
-                    {{ node.name }}
+                    <n-tooltip trigger="hover">
+                      <template #trigger>
+                        <span class="cursor-default">{{ node.name }}</span>
+                      </template>
+                      {{ formatNodeRole(node.role) }}
+                    </n-tooltip>
                     <span v-if="node.master === '*'" class="color-yellow font-600" title="当前 Master 节点" aria-label="当前 Master 节点">★</span>
                   </td>
-                  <td class="px-3 py-2 text-text-2">{{ formatNodeRole(node.role) }}</td>
                   <td class="px-3 py-2 font-mono" :class="usageClass(node.heap_percent, 85, 70)">{{ node.heap_percent || '-' }}%</td>
                   <td class="px-3 py-2 font-mono" :class="usageClass(node.cpu, 90, 70)">{{ node.cpu || '-' }}%</td>
                   <td class="px-3 py-2 font-mono" title="1 分钟 / 5 分钟 / 15 分钟系统平均负载">{{ node.load_1m || '-' }} / {{ node.load_5m || '-' }} / {{ node.load_15m || '-' }}</td>
