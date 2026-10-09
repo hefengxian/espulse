@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onActivated, onDeactivated } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import {
@@ -16,13 +16,12 @@ import {
 import { useClusterStore } from '../stores/cluster'
 import { clusterApi, type Cluster } from '../api/clusters'
 import { formatAge } from '../utils/freshness'
+import { registerRefresh, unregisterRefresh } from '../composables/useGlobalRefresh'
 
 const router = useRouter()
 const message = useMessage()
 const clusterStore = useClusterStore()
 const { clusters, loading } = storeToRefs(clusterStore)
-
-const refreshing = ref(false)
 
 // 让「更新于 x 秒前」自行跳动，避免打开页面后时间就静止
 const now = ref(Date.now())
@@ -156,13 +155,10 @@ const handleDelete = async (cluster: Cluster) => {
 }
 
 const handleRefresh = async () => {
-  refreshing.value = true
   try {
     await clusterStore.refreshAll()
   } catch {
     message.error('刷新失败')
-  } finally {
-    refreshing.value = false
   }
 }
 
@@ -231,7 +227,9 @@ const colorOf = (cluster: Cluster) => {
   return color.startsWith('#') ? color : `var(--esp-${color})`
 }
 
-onMounted(async () => {
+// 在 Hub 页，顶栏的刷新作用于集群列表本身（没有活动集群可言）
+onActivated(async () => {
+  registerRefresh(handleRefresh)
   ticker = window.setInterval(() => { now.value = Date.now() }, 5000)
   try {
     await clusterStore.fetchClusters()
@@ -240,8 +238,10 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => {
+onDeactivated(() => {
+  unregisterRefresh(handleRefresh)
   if (ticker) window.clearInterval(ticker)
+  ticker = undefined
 })
 </script>
 
@@ -252,10 +252,9 @@ onBeforeUnmount(() => {
       <div class="flex-1">
         <div class="text-18px font-600 tracking--0.4px">集群</div>
         <div class="text-12.5px text-text-2">
-          {{ clusters.length }} 个集群 · 状态由后端每 30 秒采集一次
+          {{ clusters.length }} 个集群 · 状态由后端每 5 秒采集一次
         </div>
       </div>
-      <n-button v-if="clusters.length > 0" :loading="refreshing" @click="handleRefresh">刷新状态</n-button>
       <n-button v-if="clusters.length > 0" type="primary" @click="openCreate">添加集群</n-button>
     </div>
 

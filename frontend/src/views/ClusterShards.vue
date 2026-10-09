@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onActivated, onDeactivated } from 'vue'
 import { useRoute } from 'vue-router'
 import { NButton, NInput, NCheckbox, NRadioGroup, NRadioButton } from 'naive-ui'
 import { useClusterStore } from '../stores/cluster'
 import { catalogApi, allocationApi, type EsShard, type AllocationEnable } from '../api/catalog'
-import { formatAge } from '../utils/freshness'
+import { useViewFilters } from '../composables/useViewFilters'
+import { registerRefresh, unregisterRefresh, setUpdatedAt } from '../composables/useGlobalRefresh'
 
 const route = useRoute()
 const clusterStore = useClusterStore()
@@ -13,25 +14,35 @@ const clusterId = computed(() => route.params.id as string)
 const cluster = computed(() => clusterStore.clusterById(clusterId.value))
 
 const shards = ref<EsShard[]>([])
-const updatedAt = ref('')
 const loading = ref(false)
-const refreshing = ref(false)
 const error = ref('')
 
-// ---------- 视图控制 ----------
+// 视图控制挂在「集群」上（见 PRD §2.5）：URL 优先 → 该集群上次的条件 → 默认值
 type ViewMode = 'node' | 'index'
-const viewMode = ref<ViewMode>('node')
-const search = ref('')
-const onlyProblem = ref(false)
-// 系统索引（`.` 开头）多数场景不关心，默认隐藏，可切换（同 Cerebro）
-const hideSystem = ref(true)
-const limit = ref(30)
+
+type ShardsFilters = {
+  viewMode: ViewMode
+  search: string
+  onlyProblem: boolean
+  // 系统索引（`.` 开头）多数场景不关心，默认隐藏，可切换（同 Cerebro）
+  hideSystem: boolean
+  limit: number
+}
+
+const {
+  viewMode, search, onlyProblem, hideSystem, limit,
+  applyQuery,
+} = useViewFilters<ShardsFilters>(clusterId, {
+  viewMode: 'node',
+  search: '',
+  onlyProblem: false,
+  hideSystem: true,
+  limit: 30,
+})
 
 // 过滤条件变化时重置分页
 watch([search, onlyProblem, viewMode, hideSystem], () => { limit.value = 30 })
 
-const now = ref(Date.now())
-let ticker: number | undefined
 let pollTimer: number | undefined
 
 async function load(silent = false, force = false) {
@@ -41,7 +52,7 @@ async function load(silent = false, force = false) {
   try {
     const res = await catalogApi.shards(id, force)
     shards.value = res.data ?? []
-    updatedAt.value = res.updated_at
+    setUpdatedAt(res.updated_at)
     error.value = ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败'
@@ -51,25 +62,25 @@ async function load(silent = false, force = false) {
 }
 
 async function refresh() {
-  refreshing.value = true
-  try {
-    await load(true, true)
-  } finally {
-    refreshing.value = false
-  }
+  await load(true, true)
 }
 
-onMounted(() => {
-  ticker = window.setInterval(() => { now.value = Date.now() }, 5000)
+// 顶栏的刷新是全局单入口，由当前激活的模块注册「刷新当前集群」的实现
+onActivated(() => {
+  registerRefresh(refresh)
+  // 深链（如总览的问题清单）带过来的条件优先于上次记忆的条件
+  applyQuery()
   load()
   loadAllocation()
   // 轮询同时充当「页面仍在查看」的心跳（见 PRD §6.3）
   pollTimer = window.setInterval(() => load(true), 15000)
 })
 
-onBeforeUnmount(() => {
-  if (ticker) window.clearInterval(ticker)
+// 模块被 keep-alive 保活，轮询必须在失活时停掉，否则切走的页面会在后台一直请求
+onDeactivated(() => {
+  unregisterRefresh(refresh)
   if (pollTimer) window.clearInterval(pollTimer)
+  pollTimer = undefined
 })
 
 watch(clusterId, (id) => { if (id) { load(); loadAllocation() } })
@@ -250,8 +261,6 @@ const chipTip = (s: EsShard) => {
   if (reason) parts.push(`(${reason})`)
   return parts.join(' ')
 }
-
-const freshnessText = computed(() => formatAge(updatedAt.value, now.value))
 </script>
 
 <template>
@@ -264,8 +273,6 @@ const freshnessText = computed(() => formatAge(updatedAt.value, now.value))
           {{ cluster?.name || '集群' }} · {{ cluster?.hosts?.join(', ') || '-' }}
         </div>
       </div>
-      <div class="text-11.5px text-text-3">{{ freshnessText }}</div>
-      <n-button size="small" :loading="refreshing" @click="refresh">刷新</n-button>
     </div>
 
     <div v-if="error" class="border border-red-border bg-red-bg rounded-10px px-4 py-3 text-12.5px color-red font-mono">

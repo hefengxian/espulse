@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute } from 'vue-router'
-import { NButton, NTooltip } from 'naive-ui'
+import { ref, computed, watch, onActivated, onDeactivated } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { NTooltip } from 'naive-ui'
 import { useClusterStore } from '../stores/cluster'
 import { overviewApi, type Overview } from '../api/overview'
-import { formatAge, isStale } from '../utils/freshness'
+import { registerRefresh, unregisterRefresh, setUpdatedAt } from '../composables/useGlobalRefresh'
 
 const route = useRoute()
+const router = useRouter()
 const clusterStore = useClusterStore()
 
 // 活动集群由 URL 决定
@@ -15,12 +16,9 @@ const cluster = computed(() => clusterStore.clusterById(clusterId.value))
 
 const overview = ref<Overview | null>(null)
 const loading = ref(false)
-const refreshing = ref(false)
 const error = ref('')
 
-// 让「更新于 x 秒前」自行跳动
-const now = ref(Date.now())
-let ticker: number | undefined
+// 「更新于 x 秒前」由顶栏统一展示，页面自己不再维护刷新按钮与计时器
 let pollTimer: number | undefined
 
 async function load(silent = false, force = false) {
@@ -29,6 +27,7 @@ async function load(silent = false, force = false) {
   if (!silent) loading.value = true
   try {
     overview.value = await overviewApi.get(id, force)
+    setUpdatedAt(overview.value?.updated_at)
     error.value = ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败'
@@ -38,24 +37,22 @@ async function load(silent = false, force = false) {
 }
 
 async function refresh() {
-  refreshing.value = true
-  try {
-    await load(true, true)
-  } finally {
-    refreshing.value = false
-  }
+  await load(true, true)
 }
 
-onMounted(() => {
-  ticker = window.setInterval(() => { now.value = Date.now() }, 5000)
+// 顶栏的刷新是全局单入口：由当前激活的模块把自己「刷新当前集群」的实现注册进去
+onActivated(() => {
+  registerRefresh(refresh)
   load()
   // 轮询同时充当「页面仍在查看」的心跳，后端据此维持采集（见 PRD §6.3）
   pollTimer = window.setInterval(() => load(true), 15000)
 })
 
-onBeforeUnmount(() => {
-  if (ticker) window.clearInterval(ticker)
+// 模块被 keep-alive 保活，轮询必须在失活时停掉，否则切走的页面会在后台一直请求
+onDeactivated(() => {
+  unregisterRefresh(refresh)
   if (pollTimer) window.clearInterval(pollTimer)
+  pollTimer = undefined
 })
 
 watch(clusterId, (id) => { if (id) load() })
@@ -165,12 +162,15 @@ const problemsAllClear = computed(() => {
 
 const showNodeShards = computed(() => overview.value?.nodes.some(n => n.shards !== undefined) ?? false)
 
-const freshnessText = computed(() => formatAge(overview.value?.updated_at, now.value))
-
-// 数据明显陈旧（落库快照被复用，或采集落后）时明确提示后台正在刷新，
-// 避免把旧快照读成实时（见 PRD §6.3）。阈值取三个采集周期。
-const STALE_MS = 15000
-const staleHint = computed(() => isStale(overview.value?.updated_at, now.value, STALE_MS))
+// 问题清单是诊断入口：点索引名直接跳到分片分布并带上过滤条件（见 PRD §2.5）
+const openShards = (index: string) => {
+  if (!clusterId.value) return
+  router.push({
+    name: 'ClusterShards',
+    params: { id: clusterId.value },
+    query: { search: index, onlyProblem: '1' },
+  })
+}
 
 // 资源使用率着色：超过 high 标红，超过 mid 标黄
 const usageClass = (value: string | undefined, high: number, mid: number) => {
@@ -190,10 +190,6 @@ const usageClass = (value: string | undefined, high: number, mid: number) => {
         <div class="text-18px font-600 tracking--0.4px truncate">{{ cluster?.name || '集群' }}</div>
         <div class="text-12px font-mono text-text-3 truncate">{{ cluster?.hosts?.join(', ') || '-' }}</div>
       </div>
-      <div class="text-11.5px" :class="staleHint ? 'color-yellow' : 'text-text-3'">
-        {{ freshnessText }}<template v-if="staleHint"> · 正在刷新…</template>
-      </div>
-      <n-button size="small" :loading="refreshing" @click="refresh">刷新</n-button>
     </div>
 
     <div v-if="error" class="border border-red-border bg-red-bg rounded-10px px-4 py-3 text-12.5px color-red font-mono">
@@ -318,7 +314,15 @@ const usageClass = (value: string | undefined, high: number, mid: number) => {
                   </thead>
                   <tbody>
                     <tr v-for="(row, i) in sec.rows" :key="i" class="border-t border-border">
-                      <td v-for="(cell, j) in row" :key="j" class="px-4 py-1.75" :class="j === 0 ? '' : 'text-text-2'">{{ cell }}</td>
+                      <td v-for="(cell, j) in row" :key="j" class="px-4 py-1.75" :class="j === 0 ? '' : 'text-text-2'">
+                        <button
+                          v-if="j === 0"
+                          class="border-none bg-transparent p-0 text-left transition-all hover:color-accent hover:underline"
+                          title="在分片分布中查看"
+                          @click="openShards(cell)"
+                        >{{ cell }}</button>
+                        <template v-else>{{ cell }}</template>
+                      </td>
                     </tr>
                   </tbody>
                 </table>

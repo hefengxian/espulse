@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onActivated, onDeactivated, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { NButton, NInput, NSelect, NCheckbox, NTooltip } from 'naive-ui'
 import { useClusterStore } from '../stores/cluster'
 import { catalogApi, type EsAlias, type EsIndex } from '../api/catalog'
-import { formatAge } from '../utils/freshness'
+import { useViewFilters } from '../composables/useViewFilters'
+import { registerRefresh, unregisterRefresh, setUpdatedAt } from '../composables/useGlobalRefresh'
 
 const route = useRoute()
 const clusterStore = useClusterStore()
@@ -19,22 +20,39 @@ const updatedAt = ref('')
 // 它随页面打开时长从 5s 长到 60s，因此必须如实展示，不能把短窗口的毛刺当稳定速率。
 const rateWindowMs = ref(0)
 const loading = ref(false)
-const refreshing = ref(false)
 const error = ref('')
 
-// 筛选条件：过滤与分页都在后端做（见 PRD §10）
-const search = ref('')
-const health = ref('')
-const status = ref('')
-// 系统索引（`.` 开头，如 .security-7 / .kibana_1）多数场景不关心，默认隐藏，可切换（同 Cerebro）
-const hideSystem = ref(true)
-const page = ref(1)
-const pageSize = ref(20)
-const sort = ref('index')
-const order = ref<'asc' | 'desc'>('asc')
+// 过滤 / 排序 / 分页挂在「集群」上（见 PRD §2.5）：URL 上有就用 URL 的，
+// 否则回落到该集群上次的条件，最后才是默认值。后端过滤与分页（见 PRD §10）。
+type IndicesFilters = {
+  search: string
+  health: string
+  status: string
+  // 系统索引（`.` 开头，如 .security-7 / .kibana_1）多数场景不关心，默认隐藏，可切换（同 Cerebro）
+  hideSystem: boolean
+  page: number
+  pageSize: number
+  sort: string
+  order: 'asc' | 'desc'
+  // 索引与别名是同一个「清单」主题的两个视角，合并在同一页，不新开栏目（见 PRD §2.4）
+  view: 'indices' | 'aliases'
+}
 
-// 索引与别名是同一个「清单」主题的两个视角，合并在同一页，不新开栏目（见 PRD §2.4）
-const view = ref<'indices' | 'aliases'>('indices')
+const {
+  search, health, status, hideSystem, page, pageSize, sort, order, view,
+  applyQuery,
+} = useViewFilters<IndicesFilters>(clusterId, {
+  search: '',
+  health: '',
+  status: '',
+  hideSystem: true,
+  page: 1,
+  pageSize: 20,
+  sort: 'index',
+  order: 'asc',
+  view: 'indices',
+})
+
 const aliases = ref<EsAlias[]>([])
 const aliasSearch = ref('')
 
@@ -46,8 +64,7 @@ const VIEW_TABS = [
 // 从别名视图跳到该索引的索引视图：同一页面内跳转，而不是两处重复展示（见 PRD §6.4）
 let skipSearchWatch = false
 
-const now = ref(Date.now())
-let ticker: number | undefined
+// 顶栏统一展示「更新于 N 秒前」，页面自己不再维护计时器
 let pollTimer: number | undefined
 let searchTimer: number | undefined
 
@@ -105,6 +122,7 @@ async function load(silent = false, force = false, retried = false) {
     rows.value = res.data ?? []
     total.value = res.total
     updatedAt.value = res.updated_at
+    setUpdatedAt(res.updated_at)
     rateWindowMs.value = res.rate_window_ms ?? 0
     error.value = ''
   } catch (e) {
@@ -123,6 +141,7 @@ async function loadAliases(force = false) {
     const res = await catalogApi.aliases(id, force)
     aliases.value = res.data ?? []
     updatedAt.value = res.updated_at
+    setUpdatedAt(res.updated_at)
     error.value = ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败'
@@ -131,15 +150,10 @@ async function loadAliases(force = false) {
   }
 }
 
-// 两个视图互斥，共用同一份 updatedAt，刷新按钮按当前视图分发
+// 两个视图互斥，共用同一份 updatedAt；顶栏的刷新按当前视图分发
 async function refresh() {
-  refreshing.value = true
-  try {
-    if (view.value === 'aliases') await loadAliases(true)
-    else await load(true, true)
-  } finally {
-    refreshing.value = false
-  }
+  if (view.value === 'aliases') await loadAliases(true)
+  else await load(true, true)
 }
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
@@ -180,9 +194,13 @@ const showIndex = (indexName: string) => {
   nextTick(() => { skipSearchWatch = false })
 }
 
-onMounted(() => {
-  ticker = window.setInterval(() => { now.value = Date.now() }, 5000)
-  load()
+// 顶栏的刷新是全局单入口，由当前激活的模块注册「刷新当前集群」的实现
+onActivated(() => {
+  registerRefresh(refresh)
+  // 深链（如总览的问题清单）带过来的条件优先于上次记忆的条件
+  applyQuery()
+  if (view.value === 'aliases') loadAliases()
+  else load()
   // 轮询同时充当「页面仍在查看」的心跳（见 PRD §6.3）
   pollTimer = window.setInterval(() => {
     if (view.value === 'aliases') loadAliases()
@@ -190,15 +208,16 @@ onMounted(() => {
   }, 15000)
 })
 
-onBeforeUnmount(() => {
-  if (ticker) window.clearInterval(ticker)
+// 模块被 keep-alive 保活，轮询必须在失活时停掉，否则切走的页面会在后台一直请求
+onDeactivated(() => {
+  unregisterRefresh(refresh)
   if (pollTimer) window.clearInterval(pollTimer)
+  pollTimer = undefined
   if (searchTimer) window.clearTimeout(searchTimer)
 })
 
 watch(clusterId, (id) => {
   if (!id) return
-  page.value = 1
   if (view.value === 'aliases') loadAliases()
   else load()
 })
@@ -235,8 +254,6 @@ const fmtBytes = (value: string) => {
   }
   return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`
 }
-
-const freshnessText = computed(() => formatAge(updatedAt.value, now.value))
 
 // fmtRate 渲染每秒速率。没有足够样本时后端不给这个字段，显示 "—" 而不是编一个 0。
 const fmtRate = (value?: number) => {
@@ -320,8 +337,6 @@ const routingText = (a: EsAlias) => {
           {{ cluster?.name || '集群' }} · {{ cluster?.hosts?.join(', ') || '-' }}
         </div>
       </div>
-      <div class="text-11.5px text-text-3">{{ freshnessText }}</div>
-      <n-button size="small" :loading="refreshing" @click="refresh">刷新</n-button>
     </div>
 
     <div v-if="error" class="border border-red-border bg-red-bg rounded-10px px-4 py-3 text-12.5px color-red font-mono">
