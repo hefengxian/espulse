@@ -3,27 +3,54 @@ import { ref, shallowRef, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { VueMonacoEditor, loader } from '@guolao/vue-monaco-editor'
 import * as monaco from 'monaco-editor'
-import { useClusterStore } from '../stores/cluster'
+import { NSplit } from 'naive-ui'
 import { useMetadataStore } from '../stores/metadata'
 
 // Configure loader to use local monaco-editor
 loader.config({ monaco })
 
 const route = useRoute()
-const clusterStore = useClusterStore()
 const metadataStore = useMetadataStore()
 
 // 活动集群由 URL 决定（/cluster/:id/console）
 const clusterId = computed(() => route.params.id as string)
-const cluster = computed(() => clusterStore.clusterById(clusterId.value))
-const activeCmd = ref(1)
+const activeLine = ref(0)
+const navFilter = ref('')
 const activeNavTab = ref('All')
-const activeResultTab = ref('JSON')
+
+// navigator 收起状态 + 编辑/结果分栏比例：落 localStorage 记忆
+const NAV_COLLAPSED_KEY = 'espulse:console-nav-collapsed'
+const SPLIT_SIZE_KEY = 'espulse:console-split'
+const readStored = (key: string) => {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+const navCollapsed = ref(readStored(NAV_COLLAPSED_KEY) === '1')
+const splitSize = ref((() => {
+  const n = Number(readStored(SPLIT_SIZE_KEY))
+  return n >= 0.3 && n <= 0.8 ? n : 0.65
+})())
+watch(navCollapsed, (v) => {
+  try {
+    localStorage.setItem(NAV_COLLAPSED_KEY, v ? '1' : '0')
+  } catch {
+    // 存不下就退化为仅本次会话有效
+  }
+})
+watch(splitSize, (v) => {
+  try {
+    localStorage.setItem(SPLIT_SIZE_KEY, String(v))
+  } catch {
+    // 同上
+  }
+})
 const editorRef = shallowRef<any>(null)
 const isLoading = ref(false)
 const requestDuration = ref(0)
 const requestStatus = ref<number | null>(null)
-const requestStatusText = ref('')
 
 // Watch for cluster change to fetch metadata
 watch(clusterId, (newId) => {
@@ -44,6 +71,16 @@ const response = ref(`{
   "timed_out": false,
   "number_of_nodes": 3
 }`)
+
+// Response 只区分 JSON 与纯文本：能解析成 JSON 就按 JSON 高亮，否则按纯文本渲染
+const resultLanguage = computed(() => {
+  try {
+    JSON.parse(response.value)
+    return 'json'
+  } catch {
+    return 'plaintext'
+  }
+})
 
 // Monaco 要在 canvas 里量字符宽度（font 简写解析不了 var()），所以取一次实际值传进去，
 // 否则编辑器会静默用 Monaco 自带默认字体
@@ -79,16 +116,57 @@ const resultOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
   folding: true
 }
 
-const commands = [
-  { id: 1, method: 'GET', path: '/_cluster/health', note: 'Cluster health check', time: 'just now', tag: '' },
-  { id: 2, method: 'GET', path: '/_cat/shards?v&h=…', note: 'Yellow shard query', time: '12 min', tag: 'shards', bookmarked: true },
-  { id: 3, method: 'POST', path: '/logs-prod-*/_search', note: 'Error log search', time: '34 min', tag: 'search' },
-  { id: 4, method: 'GET', path: '/_nodes/stats', note: 'Node memory stats', time: '1 hr', tag: '' },
-  { id: 5, method: 'PUT', path: '/traces-2024.01/_settings', note: 'Adjust replica count', time: '2 hr', tag: 'index' },
-]
+// 命令目录（TOC）：从编辑器内容实时解析，每项只取命令首行
+const CMD_RE = /^(GET|POST|PUT|DELETE|HEAD|PATCH)\s+(.*)$/i
+const outline = ref<{ line: number; method: string; text: string }[]>([])
 
-const selectCmd = (id: number) => {
-  activeCmd.value = id
+const filteredOutline = computed(() => {
+  const q = navFilter.value.trim().toLowerCase()
+  if (!q) return outline.value
+  return outline.value.filter(
+    (c) => c.text.toLowerCase().includes(q) || c.method.toLowerCase().includes(q)
+  )
+})
+
+const refreshOutline = () => {
+  const model = editorRef.value?.getModel()
+  if (!model) return
+  const items: { line: number; method: string; text: string }[] = []
+  for (let i = 1; i <= model.getLineCount(); i++) {
+    const m = model.getLineContent(i).trim().match(CMD_RE)
+    if (m) items.push({ line: i, method: m[1].toUpperCase(), text: m[2].trim() })
+  }
+  outline.value = items
+}
+
+// 跳转到命令行并短暂高亮落点
+let flashDecorations: monaco.editor.IEditorDecorationsCollection | null = null
+const jumpTo = (line: number) => {
+  const editor = editorRef.value
+  if (!editor) return
+  editor.revealLineInCenter(line, monaco.editor.ScrollType.Smooth)
+  editor.setPosition({ lineNumber: line, column: 1 })
+  editor.focus()
+  activeLine.value = line
+  if (!flashDecorations) flashDecorations = editor.createDecorationsCollection()
+  const deco = flashDecorations!
+  deco.set([
+    {
+      range: new monaco.Range(line, 1, line, 1),
+      options: { isWholeLine: true, className: 'esp-flash-line' }
+    }
+  ])
+  window.setTimeout(() => deco.clear(), 600)
+}
+
+// 光标移动时，目录高亮跟随光标所在命令
+const syncActiveFromCursor = (lineNumber: number) => {
+  let matched = 0
+  for (const c of outline.value) {
+    if (c.line <= lineNumber) matched = c.line
+    else break
+  }
+  if (matched) activeLine.value = matched
 }
 
 // Register custom ES Console language
@@ -255,7 +333,11 @@ const handleMount = (editor: any) => {
     glyphDecorations.set(decorations)
   }
   updateGlyphs()
-  editor.onDidChangeModelContent(updateGlyphs)
+  refreshOutline()
+  editor.onDidChangeModelContent(() => {
+    updateGlyphs()
+    refreshOutline()
+  })
 
   // 点击 Glyph Margin 图标执行该命令行
   editor.onMouseDown((e: monaco.editor.IEditorMouseEvent) => {
@@ -266,6 +348,11 @@ const handleMount = (editor: any) => {
       editor.setPosition({ lineNumber: line, column: 1 })
       runCommand()
     }
+  })
+
+  // 光标移动时同步目录高亮
+  editor.onDidChangeCursorPosition((e: monaco.editor.ICursorPositionChangedEvent) => {
+    syncActiveFromCursor(e.position.lineNumber)
   })
 
   // Register global command for CodeLens (if not already registered)
@@ -374,7 +461,6 @@ const runCommand = async () => {
 
     requestDuration.value = Date.now() - startTime
     requestStatus.value = responseData.status
-    requestStatusText.value = responseData.statusText
 
     // ES 的 _cat 等 API 返回纯文本（text/plain），普通 API 返回 JSON。
     // 依据响应头 Content-Type 决定是否解析，避免对纯文本调用 json() 报错。
@@ -392,7 +478,6 @@ const runCommand = async () => {
   } catch (err) {
     response.value = JSON.stringify({ error: err instanceof Error ? err.message : String(err) }, null, 2)
     requestStatus.value = 500
-    requestStatusText.value = 'Error'
   } finally {
     isLoading.value = false
   }
@@ -440,38 +525,53 @@ const formatCode = () => {
 
 <template>
   <div class="h-full flex overflow-hidden animate-in fade-in duration-300">
-    <!-- Command Navigator (LEFT) -->
-    <!-- ... same as before ... -->
-    <div id="cmd-nav" class="w-65 min-w-65 bg-bg-2 border-r border-border flex flex-col overflow-hidden flex-shrink-0">
-      <div class="p-3 px-3.5 border-b border-border flex-shrink-0">
-        <div class="text-12px font-600 tracking-0.04em uppercase text-text-3 mb-2.5">Command Navigator</div>
-        <div class="flex items-center gap-1.75 bg-bg-3 border border-border rounded-6px px-2.25 h-7.5 transition-all focus-within:border-accent">
-          <div class="w-3 h-3 text-text-3 i-lucide-search"></div>
-          <input type="text" placeholder="Filter commands…" class="flex-1 border-none bg-transparent text-text font-sans text-12.5px outline-none placeholder:text-text-3" />
-        </div>
-      </div>
+    <!-- Command Navigator (LEFT)：可收起为图标栏 -->
+    <div id="cmd-nav"
+      class="bg-bg-2 border-r border-border flex flex-col overflow-hidden flex-shrink-0 transition-all duration-200"
+      :class="navCollapsed ? 'w-11' : 'w-65'"
+    >
+      <!-- 收起态：只留一个展开图标 -->
+      <template v-if="navCollapsed">
+        <button class="btn-icon mx-auto mt-3 flex-shrink-0" title="展开命令目录" @click="navCollapsed = false">
+          <div class="w-3.75 h-3.75 i-lucide-panel-left-open"></div>
+        </button>
+      </template>
 
-      <div class="flex gap-0.5 px-3.5 pt-2 flex-shrink-0">
-        <div v-for="tab in ['All', 'Saved', 'History']" :key="tab"
-          class="text-12px font-500 p-1 px-2.5 rounded-5px cursor-pointer text-text-3 transition-all hover:bg-bg-3 hover:text-text-2"
-          :class="{ '!bg-accent-glow !text-accent': activeNavTab === tab }"
-          @click="activeNavTab = tab"
-        >
-          <div v-if="tab === 'Saved'" class="w-2.75 h-2.75 mr-0.75 inline-block i-lucide-bookmark"></div>
-          <div v-if="tab === 'History'" class="w-2.75 h-2.75 mr-0.75 inline-block i-lucide-history"></div>
-          {{ tab }}
+      <!-- 展开态 -->
+      <template v-else>
+        <div class="p-3 px-3.5 border-b border-border flex-shrink-0">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="text-12px font-600 tracking-0.04em uppercase text-text-3">Command Navigator</div>
+            <button class="btn-icon -mr-1.5" title="收起命令目录" @click="navCollapsed = true">
+              <div class="w-3.75 h-3.75 i-lucide-panel-left-close"></div>
+            </button>
+          </div>
+          <div class="flex items-center gap-1.75 bg-bg-3 border border-border rounded-6px px-2.25 h-7.5 transition-all focus-within:border-accent">
+            <div class="w-3 h-3 text-text-3 i-lucide-search"></div>
+            <input v-model="navFilter" type="text" placeholder="Filter commands…" class="flex-1 border-none bg-transparent text-text font-sans text-12.5px outline-none placeholder:text-text-3" />
+          </div>
         </div>
-      </div>
 
-      <div class="flex-1 overflow-y-auto p-2">
-        <div class="text-10px font-600 tracking-0.08em uppercase text-text-3 p-2.5 pb-1.25 opacity-80">This session · 8 commands</div>
-        <div v-for="cmd in commands" :key="cmd.id"
-          class="p-2 px-2.5 rounded-7px cursor-pointer border border-transparent transition-all mb-0.75 hover:bg-bg-3 hover:border-border"
-          :class="{ '!bg-bg-4 !border-border-2': activeCmd === cmd.id }"
-          @click="selectCmd(cmd.id)"
-        >
-          <div class="flex items-center mb-1">
-            <span class="inline-flex items-center h-4.5 px-1.5 rounded-4px text-10.5px font-700 font-mono mr-1.5 flex-shrink-0"
+        <div class="flex gap-0.5 px-3.5 pt-2 flex-shrink-0">
+          <div v-for="tab in ['All', 'Saved', 'History']" :key="tab"
+            class="text-12px font-500 p-1 px-2.5 rounded-5px cursor-pointer text-text-3 transition-all hover:bg-bg-3 hover:text-text-2"
+            :class="{ '!bg-accent-glow !text-accent': activeNavTab === tab }"
+            @click="activeNavTab = tab"
+          >
+            <div v-if="tab === 'Saved'" class="w-2.75 h-2.75 mr-0.75 inline-block i-lucide-bookmark"></div>
+            <div v-if="tab === 'History'" class="w-2.75 h-2.75 mr-0.75 inline-block i-lucide-history"></div>
+            {{ tab }}
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-2">
+          <div class="text-10px font-600 tracking-0.08em uppercase text-text-3 p-2.5 pb-1.25 opacity-80">This session · {{ outline.length }} commands</div>
+          <div v-for="cmd in filteredOutline" :key="cmd.line"
+            class="flex items-center gap-1.5 p-1.5 px-2.5 rounded-7px cursor-pointer border border-transparent transition-all mb-0.75 hover:bg-bg-3 hover:border-border"
+            :class="{ '!bg-bg-4 !border-border-2': activeLine === cmd.line }"
+            @click="jumpTo(cmd.line)"
+          >
+            <span class="inline-flex items-center h-4.5 px-1.5 rounded-4px text-10.5px font-700 font-mono flex-shrink-0"
               :class="{
                 'bg-[rgba(34,197,94,0.12)] text-[#4ade80]': cmd.method === 'GET',
                 'bg-[rgba(91,108,248,0.15)] text-[#818cf8]': cmd.method === 'POST',
@@ -479,90 +579,74 @@ const formatCode = () => {
                 'bg-[rgba(239,68,68,0.12)] text-[#f87171]': cmd.method === 'DELETE'
               }"
             >{{ cmd.method }}</span>
-            <span class="text-12px font-mono text-text font-500 overflow-hidden text-ellipsis whitespace-nowrap">{{ cmd.path }}</span>
+            <span class="flex-1 text-12px font-mono text-text font-500 overflow-hidden text-ellipsis whitespace-nowrap">{{ cmd.text }}</span>
           </div>
-          <div class="flex items-center gap-1.5 mt-1.25">
-            <span v-if="cmd.tag" class="text-10px px-1.5 rounded-full border border-border text-text-3 bg-bg-3 flex-shrink-0">{{ cmd.tag }}</span>
-            <span class="text-11.5px text-text-2 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{{ cmd.note }}</span>
-            <span class="text-10.5px text-text-3 font-mono flex-shrink-0">{{ cmd.time }}</span>
+          <div v-if="!filteredOutline.length" class="p-2.5 text-11.5px text-text-3">
+            {{ navFilter ? 'No matching commands' : 'No commands' }}
           </div>
         </div>
-      </div>
+      </template>
     </div>
 
-    <!-- Editor Area -->
-    <div id="editor-area" class="flex-1 flex flex-col overflow-hidden min-w-0 bg-bg">
-      <div class="flex items-center gap-2 p-2.5 px-4 border-b border-border bg-bg-2 flex-shrink-0">
-        <span class="text-12.5px font-600 text-text-2 flex-1">console.es &nbsp;<span class="text-text-3 font-400 text-11.5px">· 8 commands</span></span>
-        <button 
-          class="flex items-center gap-1.25 p-1.25 px-3 rounded-6px border border-border bg-transparent text-text-2 font-sans text-12.5px cursor-pointer transition-all hover:bg-bg-3 hover:text-text"
-          @click="formatCode"
-        >
-          <div class="w-3.25 h-3.25 i-lucide-align-left"></div>
-          Format
-        </button>
-        <div class="w-px h-4.5 bg-border flex-shrink-0"></div>
-        <button 
-          class="flex items-center gap-1.25 p-1.25 px-3 rounded-6px border border-accent bg-accent text-white font-sans text-12.5px cursor-pointer transition-all hover:bg-[#6b7cff] hover:border-[#6b7cff] disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="isLoading || !clusterId"
-          @click="runCommand"
-        >
-          <div v-if="isLoading" class="w-3.25 h-3.25 i-lucide-loader animate-spin"></div>
-          <div v-else class="w-3.25 h-3.25 i-lucide-play"></div>
-          {{ isLoading ? 'Running...' : 'Run' }} &nbsp;<span class="opacity-70 text-11px">⌘↵</span>
-        </button>
-      </div>
+    <!-- Editor + Response：可拖动分栏 -->
+    <n-split
+      v-model:size="splitSize"
+      direction="horizontal"
+      :min="0.3"
+      :max="0.8"
+      :resize-trigger-size="6"
+      class="flex-1 min-w-0"
+      :theme-overrides="{ resizableTriggerColor: 'var(--esp-border)', resizableTriggerColorHover: 'var(--esp-accent)' }"
+    >
+      <template #1>
+        <!-- Editor Area -->
+        <div id="editor-area" class="h-full flex flex-col overflow-hidden bg-bg">
+          <div class="flex items-center gap-2 p-2.5 px-4 border-b border-border bg-bg-2 flex-shrink-0">
+            <span class="text-12.5px font-600 text-text-2 flex-1">console.es &nbsp;<span class="text-text-3 font-400 text-11.5px">· {{ outline.length }} commands</span></span>
+            <button
+              class="flex items-center gap-1.25 p-1.25 px-3 rounded-6px border border-border bg-transparent text-text-2 font-sans text-12.5px cursor-pointer transition-all hover:bg-bg-3 hover:text-text"
+              @click="formatCode"
+            >
+              <div class="w-3.25 h-3.25 i-lucide-align-left"></div>
+              Format
+            </button>
+          </div>
 
-      <div class="flex-1 relative overflow-hidden">
-        <vue-monaco-editor
-          v-model:value="code"
-          language="es-console"
-          theme="vs-dark"
-          :options="editorOptions"
-          @mount="handleMount"
-        />
-      </div>
+          <div class="flex-1 relative overflow-hidden">
+            <vue-monaco-editor
+              v-model:value="code"
+              language="es-console"
+              theme="vs-dark"
+              :options="editorOptions"
+              @mount="handleMount"
+            />
+          </div>
+        </div>
+      </template>
 
-      <div class="h-6 bg-bg-4 border-t border-border flex items-center px-3.5 gap-4 flex-shrink-0">
-        <span v-if="requestStatus" class="text-11px font-mono flex items-center gap-1.25"
-          :class="requestStatus < 400 ? 'text-green' : 'text-red'">
-          <div v-if="isLoading" class="w-2.5 h-2.5 i-lucide-loader animate-spin"></div>
-          <div v-else class="w-2.5 h-2.5 i-lucide-play"></div>
-          {{ requestStatus }} {{ requestStatusText }} · {{ requestDuration }}ms
-        </span>
-        <span v-else-if="isLoading" class="text-11px font-mono text-text-3 flex items-center gap-1.25">
-          <div class="w-2.5 h-2.5 i-lucide-loader animate-spin"></div>
-          Executing...
-        </span>
-        <span class="text-11px font-mono text-text-3 ml-auto">
-          {{ cluster?.name || 'No Cluster' }}
-        </span>
-      </div>
-    </div>
-
-    <!-- Result Panel (RIGHT) -->
-    <div id="result-panel" class="w-95 min-w-95 bg-bg-2 border-l border-border flex flex-col overflow-hidden flex-shrink-0">
-      <div class="flex items-center justify-between p-2.5 px-3.5 border-b border-border flex-shrink-0">
-        <span class="text-12px font-600 tracking-0.04em uppercase text-text-3">Response</span>
-        <span v-if="requestStatus" class="text-11.5px font-mono" :class="requestStatus < 400 ? 'text-green' : 'text-red'">
-          {{ requestStatus }} · {{ requestDuration }}ms
-        </span>
-      </div>
-      <div class="flex border-b border-border flex-shrink-0">
-        <div v-for="tab in ['JSON', 'Table', 'Raw']" :key="tab"
-          class="text-12px font-500 p-2 px-3.5 cursor-pointer text-text-3 border-b-2 border-transparent transition-all hover:text-text-2"
-          :class="{ '!text-accent !border-accent': activeResultTab === tab }"
-          @click="activeResultTab = tab"
-        >{{ tab }}</div>
-      </div>
-      <div class="flex-1 relative overflow-hidden">
-        <vue-monaco-editor
-          v-model:value="response"
-          language="json"
-          theme="vs-dark"
-          :options="resultOptions"
-        />
-      </div>
-    </div>
+      <template #2>
+        <!-- Result Panel (RIGHT)：只区分 JSON / 纯文本 -->
+        <div id="result-panel" class="h-full bg-bg-2 flex flex-col overflow-hidden">
+          <div class="flex items-center justify-between p-2.5 px-3.5 border-b border-border flex-shrink-0">
+            <span class="text-12px font-600 tracking-0.04em uppercase text-text-3">Response</span>
+            <span v-if="isLoading" class="text-11.5px font-mono text-text-3 flex items-center gap-1.25">
+              <div class="w-3 h-3 i-lucide-loader animate-spin"></div>
+              Running…
+            </span>
+            <span v-else-if="requestStatus" class="text-11.5px font-mono" :class="requestStatus < 400 ? 'text-green' : 'text-red'">
+              {{ requestStatus }} · {{ requestDuration }}ms
+            </span>
+          </div>
+          <div class="flex-1 relative overflow-hidden">
+            <vue-monaco-editor
+              v-model:value="response"
+              :language="resultLanguage"
+              theme="vs-dark"
+              :options="resultOptions"
+            />
+          </div>
+        </div>
+      </template>
+    </n-split>
   </div>
 </template>
