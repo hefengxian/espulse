@@ -30,8 +30,11 @@
 - [x] 添加 / 编辑集群后立即采集一次，避免等待下个周期
 - [x] `POST /api/clusters/refresh`：手动触发重采
 - [x] 采集器改造为「按需激活的共享采集」：按 `(集群, kind)` 共享缓存 + 单飞去重 + `lastAccess` 空闲淘汰（见 PRD §6.3）
-- [x] 扩展 kind：`nodes`（`_cat/nodes`）、`shards`（`_cat/shards`）、`indices`（`_cat/indices`）
-- [x] 数据接口：`GET /api/clusters/:id/{nodes,indices,shards}`，统一返回 `{ data, updated_at }`
+- [x] 扩展 kind：`nodes`（`_cat/nodes`）、`shards`（`_cat/shards`）、`indices`（`_cat/indices`）、`aliases`（`_cat/aliases`）
+- [x] 数据接口：`GET /api/clusters/:id/{nodes,indices,shards,aliases}`，统一返回 `{ data, updated_at }`
+- [x] 快照落库（`snapshots` 表，gzip 压缩）：内存被空闲淘汰 / 进程重启后先渲染落库快照再后台刷新，只有「从未采集过」的集群才同步等一次采集
+- [x] 速率样本环（`index_samples` 表）与索引写入 / 搜索速率（就地差分，窗口 60s，随快照返回 `rate_window_ms`）
+- [ ] 多实例部署下的跨进程采集去重（见 PRD §10）
 
 ### 3. Cerebro 核心页面（数据优先，UI 后置）
 - [x] 集群总览：状态仪表盘 + 问题清单（见 PRD §6.1）
@@ -41,8 +44,9 @@
   - [x] 问题清单：未分配分片 Top 20（含原因）/ relocating 分片 / 非 green 索引（失衡改由节点表的「分片」列呈现，不做模糊阈值判定）
   - [x] 数据接口 `GET /api/clusters/:id/overview`（聚合 status / nodes / indices / shards，支持 `?refresh=1` 强制重采）
 - [x] 节点信息并入总览的节点表（**取消单独设页**，见 PRD §2.4 / §6.4）
-- [x] 索引列表：`_cat/indices`，后端过滤（索引名 / health / status）+ 排序（索引名 / 存储 / 文档 / health）+ 分页，前端表格与分页器；侧边栏新增 Indices 入口（`/cluster/:id/indices`）
-- [x] 分片分布：`_cat/shards` 矩阵，支持「按节点 / 按索引」视角切换、索引名搜索与「只看有问题的索引」过滤、索引轴分页（见 PRD §6.2）；侧边栏新增 Shards 入口（`/cluster/:id/shards`）
+- [x] 索引列表：`_cat/indices`，后端过滤（索引名 / health / status / 隐藏 `.` 开头索引）+ 排序（索引名 / 存储 / 文档 / health / 写入速率 / 查询速率）+ 分页，前端表格与分页器；侧边栏新增 Indices 入口（`/cluster/:id/indices`）
+- [x] 索引列表展示写入 / 搜索速率（样本不足显示「—」，列头提示差分窗口；见 PRD §11）
+- [x] 分片分布：`_cat/shards` 矩阵，支持「按节点 / 按索引」视角切换、索引名搜索、「隐藏 `.` 开头的索引」（默认开启）与「只看有问题的索引」过滤、索引轴分页（见 PRD §6.2）；侧边栏新增 Shards 入口（`/cluster/:id/shards`）
 - [x] 索引别名：`_cat/aliases`，后端 kind 采集 + `GET /api/clusters/:id/aliases`，前端并入索引页的「别名」视图（**不单独设页**，见 PRD §2.4）
 
 ---

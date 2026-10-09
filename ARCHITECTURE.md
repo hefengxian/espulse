@@ -158,6 +158,28 @@ CREATE TABLE IF NOT EXISTS console_history (
     duration_ms INTEGER,                -- 请求耗时
     executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 每个 (集群, 数据类型) 的最新一份采集快照。data 是 gzip 后的 JSON。
+-- 它让「空闲被淘汰 / 进程重启」的集群也能秒开：先渲染旧快照，再后台刷新（见 PRD §6.3）。
+CREATE TABLE IF NOT EXISTS snapshots (
+    cluster_id TEXT NOT NULL,
+    kind       TEXT NOT NULL,           -- status | nodes | indices | shards | aliases
+    data       TEXT NOT NULL,           -- gzip(JSON)
+    updated_at INTEGER NOT NULL         -- Unix 毫秒，即该快照的采集时间
+    PRIMARY KEY (cluster_id, kind)
+);
+
+-- 索引累计计数的短期样本环，只服务于写入 / 搜索速率的就地差分（见 PRD §11）。
+-- at 排在 index_name 之前，「按时间裁剪」可直接命中主键前缀。
+CREATE TABLE IF NOT EXISTS index_samples (
+    cluster_id   TEXT    NOT NULL,
+    at           INTEGER NOT NULL,      -- Unix 毫秒
+    index_name   TEXT    NOT NULL,
+    idx_total    INTEGER NOT NULL,      -- _cat/indices 的 indexing.index_total
+    search_total INTEGER NOT NULL,      -- _cat/indices 的 search.query_total
+    docs_count   INTEGER NOT NULL,
+    PRIMARY KEY (cluster_id, at, index_name)
+) WITHOUT ROWID;
 ```
 
 ---
@@ -204,6 +226,8 @@ GET    /api/clusters/:id/shards/active   仅返回 INITIALIZING / RELOCATING 状
 ```
 
 **采集模型**：采集器按 `(集群, 数据类型)` 维护共享缓存，采用「需求驱动 + 单飞去重」——只有被页面订阅的数据类型才会被定时刷新，同一缓存项的并发请求只触发一次 ES 调用，`lastAccess` 超过空闲阈值的缓存项停止刷新并被淘汰。接口语义是「读缓存（必要时触发刷新）」，而非「每次请求都采集」，因此服务器模式下 N 个并发用户只对应一份采集。数据类型、刷新间隔与生命周期详见 PRD §6.3。
+
+每轮采集成功后快照立即落库（`snapshots`，gzip 压缩），因此内存缓存被淘汰、或进程重启后，读取会先返回落库的历史快照再后台刷新——只有「从未采集过」的集群才需要同步等一次采集。索引的写入 / 搜索速率是就地差分出的派生值（`index_samples` 样本环，窗口 60s），随快照一并返回并标注实际窗口。
 
 ### 静态资源（服务器模式）
 ```
