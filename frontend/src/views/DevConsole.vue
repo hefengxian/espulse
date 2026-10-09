@@ -45,6 +45,12 @@ const response = ref(`{
   "number_of_nodes": 3
 }`)
 
+// Monaco 要在 canvas 里量字符宽度（font 简写解析不了 var()），所以取一次实际值传进去，
+// 否则编辑器会静默用 Monaco 自带默认字体
+const MONO_FONT = getComputedStyle(document.documentElement)
+  .getPropertyValue('--esp-font-mono')
+  .trim() || 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+
 const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
   minimap: { enabled: false },
   fontSize: 13,
@@ -55,7 +61,7 @@ const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
   scrollBeyondLastLine: false,
   automaticLayout: true,
   theme: 'vs-dark',
-  fontFamily: 'var(--esp-font-mono)',
+  fontFamily: MONO_FONT,
   lineHeight: 22,
   padding: { top: 12 },
   wordWrap: 'on',

@@ -8,6 +8,19 @@
 
 ### 2026-10-09
 
+#### 字体与排版
+- **Frontend**: 正文字体换成 **Inter Variable**，等宽换成 **JetBrains Mono Variable**（`@fontsource-variable/*`，替换 Instrument Sans / Geist Mono）—— **变量字体一个文件覆盖 100–900**。此前只引入了 Geist Mono 400，而代码里大量使用 `b` / `font-600` / `font-700`（汇总行、统计卡、Dev Console 方法徽章），浏览器只能用合成粗体，字重发糊；也不再有「某个字重忘了引」的坑。实测 `.font-mono b` 从合成 700 变为真实字重。
+- **Frontend**: 根元素加 `font-variant-numeric: tabular-nums` —— 等宽数位让表格数字变化时列宽不跳（实测 Inter 数字串 `1111111111` 与 `8888888888` 在默认比例数位下相差 60%，开启后完全一致）。等宽字体自带该特性，不受影响。
+- **Frontend**: **显式声明中文回退栈**（`PingFang SC` → `Hiragino Sans GB` → `微软雅黑` → `Noto Sans SC` / `思源黑体` → `system-ui`）。字母类字体无 CJK 字形，中文本来就落在系统字体上（实测标题 100% 由 PingFang SC 渲染）；列出回退栈是为了让中英混排的落点可预期，不再掉到某个不可控的默认字形。**CJK 不内嵌**（体积考虑，见下）。
+- **Frontend**: Dev Console 的 Monaco `fontFamily` 由 `var(--esp-font-mono)` 改为**解析后的实际字体栈** —— Monaco 要在 canvas 里量字符宽度，解析不了 `var()`，之前一直静默回退到 Monaco 默认字体（`-apple-system / Segoe WPC`）；现在 `--esp-font-mono` 取值后传入，编辑器用上 JetBrains Mono。
+- 体积：latin 子集 woff2 共 89KB（Inter 48KB + JetBrains Mono 40KB），构建产物里 12 个面合计 312KB；构建期只 emit 一次，运行期由 `unicode-range` 决定只下载 latin。`frontend/ui_prototype/*.html` 是独立原型页（Google Fonts 引入、未被引用），本轮未同步。
+
+#### 分片方块与表格边框
+- **Frontend**: 修复**全站 `border-*` 工具类静默失效** —— UnoCSS 未引入 reset，浏览器默认 `border-style: none`，只设置 `border-width` / `border-color` 画不出任何线（只有 `border-dashed` 这类自带 `border-style` 的写法侥幸可见）。这正是「分片页竖向没有分割线」与「副本分片只剩一个数字」的同一个根因：卡片边框、表格网格线、分片方块全部没画出来。`uno.config.ts` preflight 补 `*, ::before, ::after { border-style: solid; border-width: 0 }`；**刻意不设默认 `border-color`**，保留 currentColor，避免破坏既有「border + 动态文字色」的写法。
+- **Frontend**: 副本分片方块改为**虚线框** —— 实心 = 主分片、虚线框 = 副本分片，与 Cerebro 观感一致，形状 + 颜色双编码不变；工具栏图例改为与 `CHIP_STYLE` 同源，避免两处各写一份而漂移。
+- **Frontend**: 分片矩阵 `border-collapse` 改 **`border-separate` + `border-spacing: 0`** —— collapse 模式下 sticky 表头 / 首列的边框会跟着内容一起滚走；单元格改为**固定两格宽**（`w-11.5` + `grid-cols-2`），方块在所有列里对齐成统一网格，不再随内容宽度参差；行悬浮时首个 sticky 列同步高亮。
+- **Docs**: PRD §6.2 副本分片的描述由「空心」更正为「虚线框」。
+
 #### 页面骨架与交互层级（PRD §2.5）
 - **Frontend**: **取消侧边栏**，导航收敛为顶栏两层 —— 左侧**集群切换器**（我在哪个集群）、右侧**模块 Tab**（Overview / Indices / Shards / Dev Console，看哪个维度），中间用分隔符明确层级。原侧边栏把「回集群列表」与「集群内四个视图」平铺成同一组、并要求菜单形态随上下文变形（Hub 页只剩 1 项），层级本身就是错的；取消后固定宽度还给数据表，`isCollapsed` 状态一并消失。
 - **Frontend**: 新增 `components/ClusterSwitcher.vue` —— 点开即选，不再经 Hub 中转（切集群由 3 跳降为 1 跳）；选中后**保持当前模块**（`/cluster/A/shards` → `/cluster/B/shards`），用 push 写历史以便后退回上一个集群；列表**按最近使用优先**排序（覆盖收藏 / pin 的主要收益），集群数 > 8 时显示搜索框并自动聚焦；底部固定「管理集群 →」回 Hub。Hub 页显示「全部集群」。**替换了原先 header 上那个点击无效的集群胶囊**。

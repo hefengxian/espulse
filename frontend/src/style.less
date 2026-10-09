@@ -22,10 +22,15 @@
   --esp-red-bg: rgba(239, 68, 68, 0.07);
   --esp-red-border: rgba(239, 68, 68, 0.2);
 
-  --esp-font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
-  --esp-font-mono: "Geist Mono", monospace;
+  /* 中文不内嵌（体积考虑），只显式列出各平台黑体作为回退：macOS / iOS → PingFang SC，
+     Windows → 微软雅黑，Linux → Noto Sans SC / 思源黑体。列出后中英混排的落点可预期，
+     不会掉到某个不可控的默认字形 */
+  --esp-font-sans: system-ui, "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", system-ui, -apple-system, sans-serif;
+  --esp-font-mono: "JetBrains Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", monospace;
 
   font-family: var(--esp-font-sans);
+  /* 数字按等宽数位渲染（Inter 的 tnum / 等宽字体自带）：表格里数字变化时列宽不跳 */
+  font-variant-numeric: tabular-nums;
   line-height: 1.5;
   font-weight: 400;
   background-color: var(--esp-bg);
@@ -55,7 +60,7 @@
 }
 
 body {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--esp-font-sans);
     background: var(--bg);
     color: var(--text);
     height: 100vh;
@@ -66,7 +71,7 @@ body {
 }
 
 .mono {
-    font-family: 'Geist Mono', monospace
+    font-family: var(--esp-font-mono)
 }
 
 body {

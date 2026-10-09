@@ -63,6 +63,15 @@ export default defineConfig({
   preflights: [
     {
       getCSS: () => `
+        /* 浏览器默认 border-style: none：不重置的话 border-width / border-color 工具类
+           全部静默失效（画不出线）。Tailwind 等同款 reset，这里只补这一条。
+           不设默认 border-color，保持 currentColor，避免覆盖「border + 动态文字色」的写法。 */
+        *,
+        ::before,
+        ::after {
+          border-style: solid;
+          border-width: 0;
+        }
         button, input, select, textarea {
           background-color: transparent;
           border-color: inherit;

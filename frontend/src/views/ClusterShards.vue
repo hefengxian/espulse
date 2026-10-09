@@ -215,6 +215,10 @@ const rows = computed(() => (viewMode.value === 'node' ? nodeKeys.value : visibl
 const cols = computed(() => (viewMode.value === 'node' ? visibleIndexKeys.value : nodeKeys.value))
 const rowAxisLabel = computed(() => (viewMode.value === 'node' ? '节点 \\ 索引' : '索引 \\ 节点'))
 
+// 索引轴的列头固定成同一个宽度：名字长短不一时列宽会参差，矩阵的行列线条就不齐
+// （节点轴的列少且名字短，按内容自适应即可）
+const colHeadClass = computed(() => (viewMode.value === 'node' ? 'w-36 truncate' : 'max-w-36 truncate'))
+
 const grid = computed(() => {
   const byNode = viewMode.value === 'node'
   return rows.value.map(rowKey => ({
@@ -241,13 +245,16 @@ const stats = computed(() => {
 })
 
 // ---------- 展示辅助 ----------
-// 颜色表示状态；实心=主分片，空心=副本分片（用形状而非仅颜色区分，兼顾色盲）
+// 颜色表示状态；实心 = 主分片、虚线框 = 副本分片（用形状而非仅颜色区分，兼顾色盲；观感对齐 Cerebro）
 const CHIP_STYLE: Record<string, { primary: string; replica: string }> = {
-  STARTED: { primary: 'bg-green color-white', replica: 'border border-green color-green' },
-  RELOCATING: { primary: 'bg-yellow color-white', replica: 'border border-yellow color-yellow' },
-  INITIALIZING: { primary: 'bg-accent color-white', replica: 'border border-accent color-accent' },
-  UNASSIGNED: { primary: 'bg-red color-white border border-dashed border-red', replica: 'border border-dashed border-red color-red' },
+  STARTED: { primary: 'bg-green color-white', replica: 'border border-dashed border-green color-green' },
+  RELOCATING: { primary: 'bg-yellow color-white', replica: 'border border-dashed border-yellow color-yellow' },
+  INITIALIZING: { primary: 'bg-accent color-white', replica: 'border border-dashed border-accent color-accent' },
+  UNASSIGNED: { primary: 'bg-red color-white', replica: 'border border-dashed border-red color-red' },
 }
+
+// 图例与单元格样式同源，避免两处各写一份而漂移
+const LEGEND_STATES = ['STARTED', 'RELOCATING', 'INITIALIZING', 'UNASSIGNED']
 
 const chipClass = (s: EsShard) => {
   const style = CHIP_STYLE[stateOf(s)] || CHIP_STYLE.STARTED
@@ -331,13 +338,12 @@ const chipTip = (s: EsShard) => {
       <n-checkbox v-model:checked="onlyProblem">只看有问题的索引</n-checkbox>
 
       <div class="ml-auto flex items-center gap-3 flex-wrap text-11.5px text-text-3">
-        <span class="flex items-center gap-1"><span class="chip bg-green color-white">0</span> 主分片</span>
-        <span class="flex items-center gap-1"><span class="chip border border-green color-green">0</span> 副本分片</span>
+        <span class="flex items-center gap-1"><span class="chip" :class="CHIP_STYLE.STARTED.primary">0</span> 主分片</span>
+        <span class="flex items-center gap-1"><span class="chip" :class="CHIP_STYLE.STARTED.replica">0</span> 副本分片</span>
         <span class="text-border-2">|</span>
-        <span class="flex items-center gap-1"><span class="chip bg-green color-white"></span>STARTED</span>
-        <span class="flex items-center gap-1"><span class="chip bg-yellow color-white"></span>RELOCATING</span>
-        <span class="flex items-center gap-1"><span class="chip bg-accent color-white"></span>INITIALIZING</span>
-        <span class="flex items-center gap-1"><span class="chip border border-dashed border-red color-red"></span>UNASSIGNED</span>
+        <span v-for="state in LEGEND_STATES" :key="state" class="flex items-center gap-1">
+          <span class="chip" :class="CHIP_STYLE[state].primary"></span>{{ state }}
+        </span>
       </div>
     </div>
 
@@ -355,7 +361,8 @@ const chipTip = (s: EsShard) => {
     <!-- 矩阵 -->
     <div v-else class="border border-border rounded-10px bg-bg-2 overflow-hidden">
       <div class="overflow-auto" style="max-height: calc(100vh - 320px)">
-        <table class="border-collapse select-none">
+        <!-- border-separate + spacing 0：collapse 模式下 sticky 表头 / 首列的边框会跟着内容一起滚走 -->
+        <table class="border-separate border-spacing-0 select-none">
           <thead>
             <tr>
               <th class="sticky left-0 top-0 z-30 bg-bg-3 border-b border-r border-border px-3 py-2 text-left text-11.5px font-500 text-text-3 whitespace-nowrap">
@@ -367,14 +374,14 @@ const chipTip = (s: EsShard) => {
                 class="sticky top-0 z-20 bg-bg-3 border-b border-r border-border px-2 py-2 text-11.5px font-500 whitespace-nowrap"
                 :class="isPseudo(col) ? 'color-red' : 'text-text-2'"
               >
-                <div class="max-w-36 truncate" :title="col">{{ col }}</div>
+                <div :class="colHeadClass" :title="col">{{ col }}</div>
               </th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in grid" :key="row.key" class="hover:bg-bg-3">
+            <tr v-for="row in grid" :key="row.key" class="group hover:bg-bg-3">
               <th
-                class="sticky left-0 z-10 bg-bg-2 border-b border-r border-border px-3 py-1.5 text-left text-11.5px font-500 whitespace-nowrap"
+                class="sticky left-0 z-10 bg-bg-2 border-b border-r border-border px-3 py-1.5 text-left text-11.5px font-500 whitespace-nowrap group-hover:bg-bg-3"
                 :class="isPseudo(row.key) ? 'color-red' : 'text-text-2'"
               >
                 <div class="max-w-52 truncate" :title="row.key">{{ row.key }}</div>
@@ -384,7 +391,9 @@ const chipTip = (s: EsShard) => {
                 :key="ci"
                 class="border-b border-r border-border px-1.5 py-1 align-top"
               >
-                <div class="flex flex-wrap gap-0.5 min-w-16">
+                <!-- 固定四格宽的方块阵列：所有列等宽，方块在整张矩阵里对齐成同一套格点；
+                     单元格的最大宽度因此有界（4×16 + 3×2），列宽不会被「一格塞 10 个分片」撑开 -->
+                <div class="grid grid-cols-4 gap-0.5">
                   <span
                     v-for="(s, si) in cell"
                     :key="si"
