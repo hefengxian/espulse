@@ -43,17 +43,18 @@ var SharedClient = &http.Client{
 }
 
 // ProbeClient 用于探测与采集：必须有超时，否则一个失联集群会拖垮整个采集流程。
+// 注意：这个客户端也用于交互式的「测试连接」，超时不宜过大，否则连不上时钟会等很久。
 var ProbeClient = &http.Client{
-	Timeout: 5 * time.Second,
+	Timeout: 10 * time.Second,
 	Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	},
 }
 
 // CatalogClient 用于节点 / 索引 / 分片等 _cat 列表拉取。
-// 超时比探测宽松：万级索引下 _cat/indices 的耗时可能远超 5s（见 PRD §10）。
+// 超时比探测宽松：万级索引下 _cat/indices 的耗时可能远超设定的探测超时（见 PRD §10）。
 var CatalogClient = &http.Client{
-	Timeout: 30 * time.Second,
+	Timeout: 90 * time.Second,
 	Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	},
