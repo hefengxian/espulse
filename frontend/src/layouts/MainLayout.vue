@@ -43,6 +43,11 @@ const modules = computed(() =>
 
 const isActive = (to: string) => route.path === to
 
+// 打开 v5 工作台（独立页面）：当前有活动集群就带过去，否则先回 Hub
+const openWorkbench = () => {
+  router.push(clusterId.value ? `/workbench/${clusterId.value}` : '/')
+}
+
 onMounted(async () => {
   ticker = window.setInterval(() => { now.value = Date.now() }, 5000)
 
@@ -103,6 +108,9 @@ onBeforeUnmount(() => {
         </button>
         <button class="btn-icon" :title="isDark ? '切换到浅色' : '切换到深色'" @click="toggleTheme">
           <div class="w-3.75 h-3.75" :class="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"></div>
+        </button>
+        <button class="btn-icon" title="打开 v5 工作台" @click="openWorkbench">
+          <div class="w-3.75 h-3.75 i-lucide-layout-grid"></div>
         </button>
       </div>
     </header>

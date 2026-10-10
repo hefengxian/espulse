@@ -68,8 +68,9 @@ const colorOf = (cluster: Cluster) => {
 
 const hostOf = (cluster: Cluster) => (cluster.hosts ?? []).join(', ')
 
-// 切集群保持当前模块：/cluster/A/shards → /cluster/B/shards（见 PRD §2.5）
+// 切集群保持当前模块：/cluster/A/shards → /cluster/B/shards、/workbench/A → /workbench/B（见 PRD §2.5）
 function targetPath(id: string) {
+  if (/^\/workbench\/[^/]+/.test(route.path)) return route.path.replace(/^\/workbench\/[^/]+/, `/workbench/${id}`)
   if (/^\/cluster\/[^/]+\//.test(route.path)) return route.path.replace(/^\/cluster\/[^/]+\//, `/cluster/${id}/`)
   return `/cluster/${id}/overview`
 }

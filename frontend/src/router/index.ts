@@ -5,10 +5,18 @@ import ClusterOverview from '../views/ClusterOverview.vue'
 import ClusterIndices from '../views/ClusterIndices.vue'
 import ClusterShards from '../views/ClusterShards.vue'
 import DevConsole from '../views/DevConsole.vue'
+import WorkbenchV5 from '../views/WorkbenchV5.vue'
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    {
+      // v5 统一工作台：自带顶栏 / 指标条 / 活动区 / 统一网格的全屏独立页面
+      // （与现有的 Overview / Indices / Shards 并存，互不影响）
+      path: '/workbench/:id',
+      name: 'WorkbenchV5',
+      component: WorkbenchV5,
+    },
     {
       path: '/',
       component: MainLayout,

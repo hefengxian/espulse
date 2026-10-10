@@ -1,0 +1,1531 @@
+/* ============================================================
+   ESPulse Workbench v5 — 样式
+   —— 从 ui_prototype/espulse-workbench-v5.html 迁移而来
+   —— 全部选择器限定在 .esp-wb 作用域内：与现有 UnoCSS 页面（.grid/.chip 等）零冲突
+   —— 设计令牌（--bg/--text/…）也定义在 .esp-wb 上，不污染全局
+   —— 明暗：.esp-wb 为深色默认；html.light .esp-wb 为浅色覆盖
+   ============================================================ */
+
+.esp-wb {
+  /* 设计令牌（深色，默认） */
+  --bg: #0a0b0e;
+  --bg-2: #0f1116;
+  --bg-3: #151822;
+  --bg-4: #1b1f2b;
+  --hover: #12151e;
+  --border: #1e2230;
+  --border-2: #2a3143;
+  --text: #e7eaf2;
+  --text-2: #99a2b6;
+  --text-3: #5b6478;
+  --text-4: #3c4456;
+  --accent: #7c8bff;
+  --accent-2: #a78bfa;
+  --accent-glow: rgba(124, 139, 255, 0.14);
+  --green: #3ddc97;
+  --green-bg: rgba(61, 220, 151, 0.1);
+  --green-bd: rgba(61, 220, 151, 0.28);
+  --yellow: #f5c445;
+  --yellow-bg: rgba(245, 196, 69, 0.1);
+  --yellow-bd: rgba(245, 196, 69, 0.3);
+  --red: #ff6b6b;
+  --red-bg: rgba(255, 107, 107, 0.1);
+  --red-bd: rgba(255, 107, 107, 0.3);
+  --blue: #5aa9ff;
+  --blue-bg: rgba(90, 169, 255, 0.1);
+  --blue-bd: rgba(90, 169, 255, 0.28);
+  --violet: #b39dff;
+  --violet-bg: rgba(179, 157, 255, 0.1);
+  --violet-bd: rgba(179, 157, 255, 0.28);
+  --mono: var(--esp-font-mono, 'JetBrains Mono', ui-monospace, Menlo, monospace);
+  --sans: var(--esp-font-sans, 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  --row-h: 26px;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+html.light .esp-wb {
+  --bg: #f5f6f9;
+  --bg-2: #fff;
+  --bg-3: #eef0f6;
+  --bg-4: #e4e7f0;
+  --hover: #eef1f8;
+  --border: #e3e6ef;
+  --border-2: #ced3e0;
+  --text: #0b0d13;
+  --text-2: #525b70;
+  --text-3: #8a92a6;
+  --text-4: #b4bac9;
+  --accent: #5566ef;
+  --accent-glow: rgba(85, 102, 239, 0.1);
+}
+
+.esp-wb .mono {
+  font-family: var(--mono);
+}
+
+.esp-wb ::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.esp-wb ::-webkit-scrollbar-thumb {
+  background: var(--border-2);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ---------- top bar ---------- */
+.esp-wb .topbar {
+  height: 44px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.esp-wb .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.esp-wb .brand .mark {
+  width: 23px;
+  height: 23px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+
+.esp-wb .brand span {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.esp-wb .vsep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex: 0 0 auto;
+}
+
+.esp-wb .csw {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  min-width: 176px;
+}
+
+.esp-wb .cdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: 0 0 8px var(--yellow);
+  flex: 0 0 auto;
+}
+
+.esp-wb .csw .nm {
+  font-size: 12.5px;
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.esp-wb .csw .mod {
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.esp-wb .tabs {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  height: 28px;
+}
+
+.esp-wb .tab {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-2);
+  padding: 0 11px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.esp-wb .tab.on {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.esp-wb .grow {
+  flex: 1;
+}
+
+/* 顶栏：健康 / 恢复 场景切换（控制活动区的紧凑 / 展开） */
+.esp-wb .stateSw {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  height: 24px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+
+.esp-wb .stateSw .o {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 0 9px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.esp-wb .stateSw .o.on {
+  color: var(--text);
+  background: var(--bg-4);
+}
+
+.esp-wb .stateSw .o .d {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.esp-wb .fresh {
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.esp-wb .live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 7px var(--green);
+  animation: esp-wb-pulse 2s infinite;
+}
+
+.esp-wb .live.act {
+  background: var(--yellow);
+  box-shadow: 0 0 7px var(--yellow);
+}
+
+@keyframes esp-wb-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.esp-wb .iconbtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.esp-wb .iconbtn:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.esp-wb .iconbtn.ph {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.esp-wb .iconbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ---------- 分片分配开关 ---------- */
+.esp-wb .alloc {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+  flex: 0 0 auto;
+}
+
+.esp-wb .alloc .alloc-lbl {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.esp-wb .alloc select {
+  height: 22px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.esp-wb .alloc.warn .alloc-lbl {
+  color: var(--yellow);
+}
+
+.esp-wb .alloc.warn select {
+  color: var(--yellow);
+  border-color: var(--yellow-bd);
+  background: var(--yellow-bg);
+}
+
+.esp-wb .alloc.warn::before {
+  content: '⚠';
+  color: var(--yellow);
+  font-size: 11px;
+}
+
+/* ---------- vitals ---------- */
+.esp-wb .vitals {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  height: 50px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.esp-wb .vgrp {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 13px;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  /* 默认按内容宽度排布；能均分的组用 .vgfill / .vggrow 吸收剩余宽度，避免组内右留白 */
+  flex: 0 1 auto;
+}
+
+/* 数字组：内部每个指标等宽均分 */
+.esp-wb .vgrp.vgfill {
+  flex: 2 1 auto;
+}
+
+.esp-wb .vgrp.vgfill .vstat {
+  flex: 1;
+}
+
+/* 图形组：堆叠条 width:100% 自行撑满 */
+.esp-wb .vgrp.vggrow {
+  flex: 1 1 auto;
+}
+
+.esp-wb .vgcol {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 3px;
+}
+
+.esp-wb .vgcol .vstat {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.esp-wb .hchip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 23px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+
+.esp-wb .hchip .pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.esp-wb .bar {
+  width: 78px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--bg-4);
+  overflow: hidden;
+}
+
+.esp-wb .bar > i {
+  display: block;
+  height: 100%;
+}
+
+.esp-wb .vstat {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.12;
+}
+
+.esp-wb .vstat .k {
+  font-size: 9.5px;
+  color: var(--text-4);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.esp-wb .vstat .v {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+
+.esp-wb .vstat .v small {
+  font-size: 10px;
+  color: var(--text-3);
+  margin-left: 3px;
+  font-weight: 500;
+}
+
+.esp-wb .donut {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.esp-wb .donut::after {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  background: var(--bg-2);
+}
+
+.esp-wb .donut.sm {
+  width: 30px;
+  height: 30px;
+}
+
+.esp-wb .donut.sm::after {
+  inset: 8px;
+}
+
+.esp-wb .stack {
+  display: flex;
+  height: 11px;
+  width: 100%;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--bg-4);
+}
+
+.esp-wb .vitals .stack {
+  height: 7px;
+}
+
+.esp-wb .stack > i {
+  display: block;
+  height: 100%;
+  transition: width 0.3s;
+}
+
+.esp-wb .ministat {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.esp-wb .ministat b {
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.esp-wb .ministat .red {
+  color: var(--red);
+}
+
+.esp-wb .ministat .yellow {
+  color: var(--yellow);
+}
+
+.esp-wb .ministat .blue {
+  color: var(--blue);
+}
+
+/* 指标条内联图例：分片构成（状态配色 + 主/副），同时充当数字 */
+.esp-wb .stackleg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 9.5px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.esp-wb .stackleg span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.esp-wb .stackleg i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.esp-wb .stackleg b {
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* ---------- 活动区 ---------- */
+.esp-wb .band {
+  flex: 0 0 auto;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.esp-wb .band .idle {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 14px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.esp-wb .band .idle .ok {
+  color: var(--green);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.esp-wb .band .idle .sep {
+  color: var(--text-4);
+}
+
+.esp-wb .band .idle .ts {
+  margin-left: auto;
+  color: var(--text-4);
+}
+
+.esp-wb .band .active {
+  display: none;
+}
+
+.esp-wb .band.on {
+  border-bottom-color: var(--border-2);
+}
+
+.esp-wb .band.on .idle {
+  display: none;
+}
+
+.esp-wb .band.on .active {
+  display: block;
+}
+
+.esp-wb .eb-head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.esp-wb .eb-head .ld {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: 0 0 9px var(--yellow);
+  animation: esp-wb-pulse 1.4s infinite;
+}
+
+.esp-wb .eb-head .ttl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--yellow);
+}
+
+.esp-wb .eb-head .cnt {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.esp-wb .eb-head .cnt b {
+  color: var(--text);
+}
+
+.esp-wb .eb-head .sp {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.esp-wb .eb-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+.esp-wb .eb-sec {
+  padding: 8px 12px 10px;
+  min-width: 0;
+}
+
+.esp-wb .eb-sec + .eb-sec {
+  border-left: 1px solid var(--border);
+}
+
+.esp-wb .eb-sec > h4 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+.esp-wb .eb-sec > h4 .n {
+  font-family: var(--mono);
+  color: var(--text-2);
+}
+
+.esp-wb .eb-sec > h4 .hint {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-4);
+}
+
+.esp-wb table.rt {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.esp-wb table.rt th {
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  color: var(--text-4);
+  font-weight: 600;
+  text-align: left;
+  padding: 0 6px 5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.esp-wb table.rt td {
+  font-size: 11px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.esp-wb table.rt tr:hover td {
+  background: var(--hover);
+}
+
+.esp-wb .stage.done {
+  color: var(--green);
+}
+
+.esp-wb .stage.index {
+  color: var(--yellow);
+}
+
+.esp-wb .arrow {
+  color: var(--text-4);
+  margin: 0 3px;
+}
+
+.esp-wb .prog {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.esp-wb .prog .track {
+  width: 32px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--bg-4);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.esp-wb .prog .track > i {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+
+.esp-wb .prog.stuck .track > i {
+  background: var(--red);
+}
+
+.esp-wb .prog .pct {
+  font-size: 10px;
+  color: var(--text-3);
+  min-width: 26px;
+}
+
+.esp-wb .done-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 12px 1px;
+  font-size: 10.5px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  flex-wrap: wrap;
+}
+
+.esp-wb .done-strip .lab {
+  color: var(--green);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.esp-wb .done-strip .it b {
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.esp-wb .plist {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.esp-wb .prow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 3px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text-2);
+}
+
+.esp-wb .prow:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.esp-wb .prow .ix {
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.esp-wb .prow .rs {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 10.5px;
+  flex: 0 0 auto;
+}
+
+.esp-wb .prow.dim {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.esp-wb .psub {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  margin: 7px 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.esp-wb .psub .n {
+  color: var(--yellow);
+  font-family: var(--mono);
+}
+
+/* ---------- toolbar ---------- */
+.esp-wb .toolbar {
+  flex: 0 0 auto;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.esp-wb .seg {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+.esp-wb .seg .o {
+  font-size: 11.5px;
+  color: var(--text-2);
+  padding: 0 8px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.esp-wb .seg .o.on {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.esp-wb .tsearch {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  width: 200px;
+  flex: 0 0 auto;
+}
+
+.esp-wb .tsearch input {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 11.5px;
+  outline: none;
+  width: 100%;
+  font-family: var(--sans);
+}
+
+.esp-wb .tsearch input::placeholder {
+  color: var(--text-3);
+}
+
+.esp-wb .wchip {
+  height: 20px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--sans);
+}
+
+.esp-wb .wchip:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.esp-wb .wchip.on {
+  background: var(--accent-glow);
+  color: var(--accent);
+  border-color: rgba(124, 139, 255, 0.4);
+}
+
+.esp-wb .legend {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 10px;
+  color: var(--text-3);
+  flex: 0 0 auto;
+}
+
+.esp-wb .sq {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+
+.esp-wb .sq.started {
+  background: var(--green);
+}
+
+.esp-wb .sq.relo {
+  background: var(--yellow);
+}
+
+.esp-wb .sq.init {
+  background: var(--blue);
+}
+
+.esp-wb .sq.rep {
+  background: transparent;
+  border: 1.5px solid var(--green);
+}
+
+.esp-wb .sq.un {
+  background: transparent;
+  border: 1.5px dashed var(--text-3);
+}
+
+/* ---------- 主网格 ---------- */
+.esp-wb .gridwrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.esp-wb table.wgrid {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.esp-wb .wgrid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border-2);
+  font-weight: 600;
+  color: var(--text-3);
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0 8px;
+  height: 19px;
+  white-space: nowrap;
+}
+
+.esp-wb .wgrid thead tr.h1 th {
+  color: var(--text-4);
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+}
+
+.esp-wb .wgrid thead tr.h1 th.grp {
+  text-align: center;
+  color: var(--text-3);
+}
+
+.esp-wb .wgrid thead th.sortable {
+  cursor: pointer;
+}
+
+.esp-wb .wgrid thead th.sortable:hover {
+  color: var(--text);
+}
+
+.esp-wb .wgrid thead th.sorted {
+  color: var(--accent);
+}
+
+/* 两行表头都吸顶，必须错开 top：否则第二行会被第一行压住、并漏出多重边框 */
+.esp-wb .wgrid thead tr.h1 th {
+  top: var(--wgrid-head-top, 0px);
+}
+
+.esp-wb .wgrid thead tr:last-child th {
+  top: calc(var(--wgrid-head-top, 0px) + 19px);
+}
+
+/* 节点视角顶部有一条 axisbar，表头整体下移，避免与它重叠 */
+.esp-wb .wgrid.is-node {
+  --wgrid-head-top: 26px;
+}
+
+.esp-wb .wgrid td {
+  height: var(--row-h);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+/* 列间竖向分割线：每列右侧一条（最后一列除外），表头与表体一致 */
+.esp-wb .wgrid tbody td:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.esp-wb .wgrid thead tr:last-child th:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.esp-wb .wgrid th.frz,
+.esp-wb .wgrid td.frz {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  background: var(--bg-2);
+  border-right: 1px solid var(--border-2);
+  box-shadow: 8px 0 12px -10px rgba(0, 0, 0, 0.85);
+}
+
+/* 左上角单元格同时 sticky(top+left)：必须盖住其余表头，否则横向滚动时会被压住 */
+.esp-wb .wgrid thead th.frz {
+  z-index: 6;
+}
+
+.esp-wb .wgrid tbody td.frz {
+  background: var(--bg);
+}
+
+.esp-wb .wgrid tbody tr:hover td,
+.esp-wb .wgrid tbody tr:hover td.frz {
+  background: var(--hover);
+}
+
+.esp-wb th.node {
+  text-align: center;
+  padding: 3px 6px !important;
+  height: 44px !important;
+}
+
+.esp-wb th.node .nn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  /* 与索引名（td.index）统一：mono / 11px / 500 */
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--mono);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.esp-wb th.node .nn .star {
+  color: var(--yellow);
+  /* 主节点标志与名称同字号 */
+  font-size: inherit;
+}
+
+.esp-wb th.node .st {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-3);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.esp-wb th.node .st .hi {
+  color: var(--yellow);
+}
+
+.esp-wb th.node .st .cr {
+  color: var(--red);
+}
+
+.esp-wb td.node {
+  text-align: center;
+  padding: 0 4px !important;
+}
+
+/* 数值列右对齐：选择器需带 .wgrid 才能压过 .wgrid thead th 的默认左对齐 */
+.esp-wb .wgrid td.num,
+.esp-wb .wgrid th.num {
+  text-align: right;
+}
+
+.esp-wb td.index {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 节点视角的行首「节点名」：与索引名用同一套字体口径 */
+.esp-wb .nodename {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.esp-wb td.index .hdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+/* 索引单元格：允许两行（第一行 健康点 + 名称；第二行 元信息） */
+.esp-wb .wgrid td.index {
+  white-space: normal;
+  text-overflow: clip;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.esp-wb .ixcell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 0;
+  min-width: 0;
+}
+
+.esp-wb .ixline1 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.esp-wb .ixline1 .nm {
+  min-width: 0;
+}
+
+.esp-wb .ixline2 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 13px;
+  font-size: 10px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.esp-wb .ixline2 b {
+  font-weight: 600;
+  color: var(--text-2);
+  margin-left: 2px;
+}
+
+.esp-wb .dotsep {
+  color: var(--text-4);
+}
+
+.esp-wb td.index .nm {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.esp-wb .hdot.green {
+  background: var(--green);
+}
+
+.esp-wb .hdot.yellow {
+  background: var(--yellow);
+}
+
+.esp-wb .hdot.red {
+  background: var(--red);
+}
+
+.esp-wb .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--mono);
+  line-height: 1.5;
+}
+
+.esp-wb .pill.green {
+  color: var(--green);
+  background: var(--green-bg);
+  border: 1px solid var(--green-bd);
+}
+
+.esp-wb .pill.yellow {
+  color: var(--yellow);
+  background: var(--yellow-bg);
+  border: 1px solid var(--yellow-bd);
+}
+
+.esp-wb .pill.red {
+  color: var(--red);
+  background: var(--red-bg);
+  border: 1px solid var(--red-bd);
+}
+
+.esp-wb .dim {
+  color: var(--text-3);
+}
+
+.esp-wb .st-close {
+  color: var(--text-4);
+}
+
+.esp-wb .shardcell {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* 分片方块：放大并在内部显示分片编号（实心=主，描边=副本） */
+.esp-wb .shard {
+  /* 必须保留：Chromium 下「flex 居中的文字」在元素未提升为合成层时，会按字体度量产生
+     基线偏移（异步字体 / 不同字体偏移还不一样）。promote 到独立层后光栅化恢复正常；
+     Firefox / Edge 无此问题。不要删这一行。 */
+  will-change: transform;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  transition: transform 0.2s;
+  cursor: pointer;
+}
+
+.esp-wb .shard:hover {
+  transform: scale(1.2);
+  z-index: 1;
+}
+
+.esp-wb .shard.started {
+  background: var(--green);
+  color: #08120d;
+}
+
+.esp-wb .shard.relo {
+  background: var(--yellow);
+  color: #1a1503;
+}
+
+.esp-wb .shard.init {
+  background: var(--blue);
+  color: #04121f;
+}
+
+.esp-wb .shard.rep {
+  background: transparent !important;
+}
+
+.esp-wb .shard.rep.started {
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+
+.esp-wb .shard.rep.relo {
+  border: 1px solid var(--yellow);
+  color: var(--yellow);
+}
+
+.esp-wb .shard.rep.init {
+  border: 1px solid var(--blue);
+  color: var(--blue);
+}
+
+.esp-wb .shard.un {
+  background: transparent;
+  border: 1px dashed var(--text-3);
+  color: var(--text-3);
+}
+
+.esp-wb tr.group td {
+  background: var(--bg-3) !important;
+  border-bottom: 1px solid var(--border-2);
+  font-weight: 600;
+  color: var(--text);
+  height: 27px;
+  cursor: pointer;
+}
+
+.esp-wb tr.group td.frz {
+  background: var(--bg-3) !important;
+}
+
+.esp-wb tr.group .gname {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.esp-wb tr.child td.frz .ixcell {
+  padding-left: 14px;
+}
+
+.esp-wb .caret {
+  display: inline-flex;
+  transition: transform 0.18s;
+  color: var(--text-3);
+}
+
+.esp-wb .caret.open {
+  transform: rotate(90deg);
+}
+
+.esp-wb .axisbar {
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 10px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--border-2);
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.esp-wb .axisbar .sp {
+  margin-left: auto;
+}
+
+.esp-wb .axisbar button {
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.esp-wb .axisbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ---------- 索引分页栏 ---------- */
+.esp-wb .pager {
+  flex: 0 0 auto;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.esp-wb .pager select {
+  height: 22px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.esp-wb .pager button {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.esp-wb .pager button:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.esp-wb .pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ---------- status line ---------- */
+.esp-wb .statusline {
+  flex: 0 0 auto;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.esp-wb .statusline .sp {
+  margin-left: auto;
+}
+
+/* ---------- dev console 嵌入 ---------- */
+/* 控制台沿用既有实现（UnoCSS 工具类），这里把它的 --esp-* 令牌重定向到 V5 令牌，
+   让嵌套进来的 bg-bg-2 / border-border / text-text-3 … 与工作台配色一致（含明暗）。 */
+/* 控制台以「覆盖层」叠在工作台之上（顶栏之下），而不是把工作台 display:none：
+   display:none 会销毁工作台网格的布局盒，切回时整张表要重排 + 重绘、滚动位置清 0，
+   大集群下明显卡顿。覆盖层方案下工作台仅 visibility:hidden，布局与滚动位置都保留。 */
+.esp-wb .consolewrap {
+  display: none;
+  position: absolute;
+  top: 44px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  background: var(--bg);
+  --esp-bg: var(--bg);
+  --esp-bg-2: var(--bg-2);
+  --esp-bg-3: var(--bg-3);
+  --esp-bg-4: var(--bg-4);
+  --esp-border: var(--border);
+  --esp-border-2: var(--border-2);
+  --esp-text: var(--text);
+  --esp-text-2: var(--text-2);
+  --esp-text-3: var(--text-3);
+  --esp-accent: var(--accent);
+  --esp-accent-glow: var(--accent-glow);
+  --esp-green: var(--green);
+  --esp-red: var(--red);
+}
+
+/* 进入控制台模式：控制台铺满顶栏以下区域；工作台各分区用 visibility 隐藏（保留布局 / 滚动） */
+.esp-wb.mode-console .consolewrap {
+  display: flex;
+}
+
+.esp-wb.mode-console .vitals,
+.esp-wb.mode-console .band,
+.esp-wb.mode-console .toolbar,
+.esp-wb.mode-console .gridwrap,
+.esp-wb.mode-console .pager,
+.esp-wb.mode-console .statusline {
+  visibility: hidden;
+}
