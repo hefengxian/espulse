@@ -4,23 +4,21 @@ import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useClusterStore } from '../stores/cluster'
 import { useGlobalRefresh } from '../composables/useGlobalRefresh'
+import { useTheme } from '../composables/useTheme'
 import { formatAge, isStale } from '../utils/freshness'
 import ClusterSwitcher from '../components/ClusterSwitcher.vue'
-
-const THEME_KEY = 'espulse:theme'
 
 const router = useRouter()
 const route = useRoute()
 const clusterStore = useClusterStore()
 const { loaded } = storeToRefs(clusterStore)
+const { isDark, toggleTheme } = useTheme()
 
 const { handler, refreshing, updatedAt, triggerRefresh } = useGlobalRefresh()
 
 // 活动集群由 URL 决定（/cluster/:id/...），不再使用隐式的全局选择状态
 const clusterId = computed(() => route.params.id as string | undefined)
 const currentCluster = computed(() => clusterStore.clusterById(clusterId.value))
-
-const isDark = ref(true)
 
 // 数据新鲜度常驻顶栏（见 PRD §2.4「像行情看板」）
 const now = ref(Date.now())
@@ -45,29 +43,7 @@ const modules = computed(() =>
 
 const isActive = (to: string) => route.path === to
 
-const toggleTheme = () => {
-  isDark.value = !isDark.value
-  applyTheme()
-}
-
-function applyTheme() {
-  document.documentElement.classList.toggle('light', !isDark.value)
-  document.documentElement.classList.toggle('dark', isDark.value)
-  try {
-    localStorage.setItem(THEME_KEY, isDark.value ? 'dark' : 'light')
-  } catch {
-    // 存不下就退化为仅本次会话有效
-  }
-}
-
 onMounted(async () => {
-  try {
-    isDark.value = localStorage.getItem(THEME_KEY) !== 'light'
-  } catch {
-    isDark.value = true
-  }
-  applyTheme()
-
   ticker = window.setInterval(() => { now.value = Date.now() }, 5000)
 
   try {
