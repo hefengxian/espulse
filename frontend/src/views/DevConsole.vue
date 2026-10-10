@@ -16,7 +16,6 @@ const metadataStore = useMetadataStore()
 const clusterId = computed(() => route.params.id as string)
 const activeLine = ref(0)
 const navFilter = ref('')
-const activeNavTab = ref('All')
 
 // navigator 收起状态 + 编辑/结果分栏比例：落 localStorage 记忆
 const NAV_COLLAPSED_KEY = 'espulse:console-nav-collapsed'
@@ -652,18 +651,6 @@ const copyResponse = async () => {
           <div class="flex items-center gap-1.75 bg-bg-3 border border-border rounded-6px px-2.25 h-7.5 transition-all focus-within:border-accent">
             <div class="w-3 h-3 text-text-3 i-lucide-search"></div>
             <input v-model="navFilter" type="text" placeholder="Filter commands…" class="flex-1 border-none bg-transparent text-text font-sans text-12.5px outline-none placeholder:text-text-3" />
-          </div>
-        </div>
-
-        <div class="flex gap-0.5 px-3.5 pt-2 flex-shrink-0">
-          <div v-for="tab in ['All', 'Saved', 'History']" :key="tab"
-            class="text-12px font-500 p-1 px-2.5 rounded-5px cursor-pointer text-text-3 transition-all hover:bg-bg-3 hover:text-text-2"
-            :class="{ '!bg-accent-glow !text-accent': activeNavTab === tab }"
-            @click="activeNavTab = tab"
-          >
-            <div v-if="tab === 'Saved'" class="w-2.75 h-2.75 mr-0.75 inline-block i-lucide-bookmark"></div>
-            <div v-if="tab === 'History'" class="w-2.75 h-2.75 mr-0.75 inline-block i-lucide-history"></div>
-            {{ tab }}
           </div>
         </div>
 

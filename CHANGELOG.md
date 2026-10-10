@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+### 2026-10-10
+- **Frontend**: 移除 Dev Console 命令目录（Navigator）里 `Saved` / `History` 两个**占位 Tab** —— 此前点击只切换高亮、内容恒为「This session」的命令大纲（无对应实现），属误导性 UI；连带删除无用的 `activeNavTab` 状态。
+- **Docs**: 同步项目状态 —— TASKS 将「命令目录侧边栏」标记为已完成、删除「多 Tab 并行编辑」，并记录占位 Tab 的移除；PRD Phase 2 移除「多 Tab」。
+- **Docs**: 明确优先级 —— Dev Console「**智能提示**」写入规划，定为后续**重点增强**方向（PRD §6 Phase 2 / TASKS Phase 2）；打包与多平台发布独立为**最后环节（Phase 4 / 「最后环节 — 打包与多平台发布」）**，并声明「所有设计功能完成前不考虑实现」，PRD §8 平台能力同步标注。
+
 ### 2026-10-09
 
 #### 字体与排版
