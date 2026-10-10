@@ -149,6 +149,11 @@ const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
   padding: { top: 12 },
   wordWrap: 'on',
   formatOnPaste: true,
+  tabSize: 2,
+  insertSpaces: true,
+  detectIndentation: false,
+  autoIndent: 'brackets',
+  bracketPairColorization: { enabled: true },
   suggestSelection: 'first',
   codeLens: true,
   'semanticHighlighting.enabled': true
@@ -225,6 +230,28 @@ const registerESLanguage = () => {
   }
 
   monaco.languages.register({ id: langId })
+
+  // Monaco 的括号/引号自动补齐依赖语言配置（autoClosingBrackets/Quotes 默认 'languageDefined'），
+  // 自定义语言不注册它就不会有任何输入辅助。
+  monaco.languages.setLanguageConfiguration(langId, {
+    comments: { lineComment: '#' },
+    brackets: [
+      ['{', '}'],
+      ['[', ']']
+    ],
+    autoClosingPairs: [
+      { open: '{', close: '}' },
+      { open: '[', close: ']' },
+      { open: '"', close: '"' },
+      { open: "'", close: "'" }
+    ],
+    surroundingPairs: [
+      { open: '{', close: '}' },
+      { open: '[', close: ']' },
+      { open: '"', close: '"' },
+      { open: "'", close: "'" }
+    ]
+  })
 
   // 1. Syntax Highlighting (Monarch)
   monaco.languages.setMonarchTokensProvider(langId, {
@@ -507,14 +534,17 @@ const runCommand = async () => {
   const startTime = Date.now()
 
   try {
-    const url = `/api/proxy/${cmd.path.startsWith('/') ? cmd.path.substring(1) : cmd.path}`
-    const responseData = await fetch(url, {
-      method: cmd.method,
+    const responseData = await fetch('/api/proxy', {
+      method: 'POST',
       headers: {
         'X-Cluster-ID': clusterId.value,
         'Content-Type': 'application/json'
       },
-      body: cmd.method !== 'GET' && cmd.method !== 'HEAD' && cmd.body ? cmd.body : undefined
+      body: JSON.stringify({
+        path: cmd.path.startsWith('/') ? cmd.path : `/${cmd.path}`,
+        method: cmd.method,
+        body: cmd.body
+      })
     })
 
     requestDuration.value = Date.now() - startTime

@@ -11,8 +11,10 @@ export const useMetadataStore = defineStore('metadata', () => {
 
     isLoading.value = true
     try {
-      const response = await fetch(`/api/proxy/_cat/indices?format=json`, {
-        headers: { 'X-Cluster-ID': clusterId }
+      const response = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'X-Cluster-ID': clusterId, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: '/_cat/indices?format=json', method: 'GET', body: '' })
       })
       if (response.ok) {
         const data = await response.json()
@@ -29,8 +31,10 @@ export const useMetadataStore = defineStore('metadata', () => {
     if (!clusterId || fields.value[indexName]) return
 
     try {
-      const response = await fetch(`/api/proxy/${indexName}/_mapping`, {
-        headers: { 'X-Cluster-ID': clusterId }
+      const response = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'X-Cluster-ID': clusterId, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: `/${indexName}/_mapping`, method: 'GET', body: '' })
       })
       if (response.ok) {
         const data = await response.json()

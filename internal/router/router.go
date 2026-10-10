@@ -27,7 +27,8 @@ func SetupRouter() *gin.Engine {
 			clusters.GET("/:id/aliases", handlers.ListAliases)
 		}
 
-		api.Any("/proxy/*path", handlers.ProxyES)
+		// Dev Console 的通用 ES 代理：固定 POST + JSON 信封 {path, method, body}
+		api.POST("/proxy", handlers.ProxyES)
 	}
 
 	return r

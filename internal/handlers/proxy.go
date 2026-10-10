@@ -1,11 +1,12 @@
 package handlers
 
 import (
-	"bytes"
 	"database/sql"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hefengxian/espulse/internal/database"
@@ -13,44 +14,31 @@ import (
 	"github.com/hefengxian/espulse/internal/models"
 )
 
-// maxReplayBodyBytes 是代理请求体可缓冲的上限。
-// 超过它的请求不再缓冲、只尝试首个 host —— 在「多 host 重试」与「_bulk 大写入不被吃进内存」之间取平衡。
-const maxReplayBodyBytes = 1 << 20 // 1 MiB
+// maxProxyBodyBytes 限制信封内 payload 的大小。
+// 改信封后 body 会整体进内存，需要一个上限防止滥用（原流式代理在超过 1MiB 时会退化为只打首个 host）。
+const maxProxyBodyBytes = 10 << 20 // 10 MiB
 
-// replayableBody 把流式请求体包装成可重复调用的工厂函数，供故障转移时重放。
-// body 为空时返回 (nil, true, nil)；超过上限时返回 (只读一次的工厂, false, nil)。
-func replayableBody(body io.ReadCloser, limit int64) (func() (io.Reader, error), bool, error) {
-	if body == nil {
-		return nil, true, nil
-	}
-
-	buf, err := io.ReadAll(io.LimitReader(body, limit+1))
-	if err != nil {
-		return nil, false, err
-	}
-
-	if int64(len(buf)) > limit {
-		// 太大：不缓冲，把已读部分与剩余流拼回去，只允许这次请求使用
-		used := false
-		return func() (io.Reader, error) {
-			if used {
-				return nil, io.EOF
-			}
-			used = true
-			return io.MultiReader(bytes.NewReader(buf), body), nil
-		}, false, nil
-	}
-
-	if len(buf) == 0 {
-		return nil, true, nil
-	}
-
-	return func() (io.Reader, error) {
-		return bytes.NewReader(buf), nil
-	}, true, nil
+// proxyRequest 是 Dev Console 构建请求时的固定信封：
+//   - Path   命令首行去掉动词后的部分，可携带 query string，如 /_cat/shards?v&h=index,shard
+//   - Method 命令行的动词，决定打到 ES 的 HTTP 方法
+//   - Body   命令行下方的原始请求体文本；不一定是 JSON（_bulk 是 NDJSON），故按字符串透传
+type proxyRequest struct {
+	Path   string `json:"path"`
+	Method string `json:"method"`
+	Body   string `json:"body"`
 }
 
-// ProxyES 将请求透明转发到目标 Elasticsearch 集群，不做任何解析或封装。
+// allowedProxyMethods 是允许透传到 ES 的 HTTP 方法白名单，避免用户构造 CONNECT、TRACE 等。
+var allowedProxyMethods = map[string]bool{
+	http.MethodGet:    true,
+	http.MethodPost:   true,
+	http.MethodPut:    true,
+	http.MethodDelete: true,
+	http.MethodHead:   true,
+	http.MethodPatch:  true,
+}
+
+// ProxyES 将 Dev Console 构建的请求转发到目标 Elasticsearch 集群，不做任何解析或封装。
 func ProxyES(c *gin.Context) {
 	clusterID := c.GetHeader("X-Cluster-ID")
 	if clusterID == "" {
@@ -58,9 +46,31 @@ func ProxyES(c *gin.Context) {
 		return
 	}
 
-	// 1. 取出集群连接信息
+	// 1. 解析固定信封
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxProxyBodyBytes)
+	var in proxyRequest
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	method := strings.ToUpper(strings.TrimSpace(in.Method))
+	if !allowedProxyMethods[method] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported method: " + in.Method})
+		return
+	}
+
+	// path 可能携带 query string，必须在此拆开交给 es.Request，
+	// 否则会被 es 层的 url.JoinPath 当作 path 的一部分转义掉，query 就丢了。
+	u, err := url.Parse(in.Path)
+	if err != nil || u.Host != "" || !strings.HasPrefix(u.Path, "/") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid path: " + in.Path})
+		return
+	}
+
+	// 2. 取出集群连接信息
 	var cluster models.Cluster
-	err := database.DB.QueryRow(
+	err = database.DB.QueryRow(
 		"SELECT id, hosts, auth_type, username, password, api_key FROM clusters WHERE id = ?",
 		clusterID,
 	).Scan(
@@ -76,39 +86,41 @@ func ProxyES(c *gin.Context) {
 		return
 	}
 
-	// 2. 构造转发请求（认证由请求层统一处理）
-	// 使用不设超时的共享客户端：reindex、长查询不能被打断
+	// 3. 构造转发请求（认证由请求层统一处理）
+	// 使用不设超时的共享客户端：reindex、长查询不能被打断。
 	target := es.TargetFromCluster(cluster)
 
-	// 请求体是流式的，读一次就没了，而故障转移会把同一个请求发往多个 host。
-	// 因此在体量可控时先缓冲一份；超出上限（如 _bulk 大批量写入）则不缓冲，
-	// 该请求退化为「只打首个 host」，以免把大请求整个吃进内存。
-	body, replayable, err := replayableBody(c.Request.Body, maxReplayBodyBytes)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	// body 已是内存中的字符串，每次尝试 host 都返回全新的读取器即可重放，天然支持故障转移。
+	var body func() (io.Reader, error)
+	if in.Body != "" {
+		payload := in.Body
+		body = func() (io.Reader, error) { return strings.NewReader(payload), nil }
 	}
 
-	// 3. 透传客户端请求头，但不转发 X-Cluster-ID、Host 与 Authorization
-	// （Authorization 必须由本服务按集群配置生成，避免被浏览器请求头覆盖）
+	// 4. 透传客户端请求头，但不转发 X-Cluster-ID、Host、Authorization（认证由本服务生成）
+	// 以及信封自身的 Content-Type / Content-Length 等逐跳或会误导 ES 的头。
 	copyHeaders := func(req *http.Request) {
 		for name, values := range c.Request.Header {
-			if name == "X-Cluster-ID" || name == "Host" || name == "Authorization" {
+			switch http.CanonicalHeaderKey(name) {
+			case "X-Cluster-Id", "Host", "Authorization",
+				"Content-Type", "Content-Length", "Connection", "Transfer-Encoding":
 				continue
 			}
 			for _, value := range values {
 				req.Header.Add(name, value)
 			}
 		}
+		if in.Body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
 	}
 
-	// 4. 执行请求（依次尝试集群的各个 host）
+	// 5. 执行请求（依次尝试集群的各个 host）
 	resp, err := target.Do(es.SharedClient, es.Request{
-		Method:  c.Request.Method,
-		Path:    c.Param("path"),
-		Query:   c.Request.URL.Query(),
-		Body:    body,
-		NoRetry: !replayable,
+		Method: method,
+		Path:   u.Path,
+		Query:  u.Query(),
+		Body:   body,
 	}, copyHeaders)
 	if err != nil {
 		log.Printf("Proxy error: %v", err)
@@ -117,7 +129,7 @@ func ProxyES(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	// 5. 原样回传响应
+	// 6. 原样回传响应
 	for name, values := range resp.Header {
 		for _, value := range values {
 			c.Header(name, value)

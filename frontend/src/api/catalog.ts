@@ -110,7 +110,7 @@ export const catalogApi = {
 
 // ---------- 分片分配开关 ----------
 // cluster.routing.allocation.enable 决定「允许分配哪些分片」。
-// 读写都走通用 ES 代理（/api/proxy/_cluster/settings），不经后端专用接口。
+// 读写都走通用 ES 代理（POST /api/proxy，信封 path=/_cluster/settings），不经后端专用接口。
 export type AllocationEnable = 'all' | 'primaries' | 'new_primaries' | 'none'
 
 export const ALLOCATION_ENABLE_KEY = 'cluster.routing.allocation.enable'
@@ -123,8 +123,10 @@ interface ClusterSettingsResponse {
 export const allocationApi = {
   // 生效值优先级：transient > persistent，都未设置时 ES 默认 all
   async get(clusterId: string): Promise<AllocationEnable> {
-    const res = await fetch('/api/proxy/_cluster/settings?flat_settings=true', {
-      headers: { 'X-Cluster-ID': clusterId },
+    const res = await fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'X-Cluster-ID': clusterId, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/_cluster/settings?flat_settings=true', method: 'GET', body: '' }),
     })
     if (!res.ok) throw new Error(`读取集群设置失败 (${res.status})`)
     const data: ClusterSettingsResponse = await res.json()
@@ -134,12 +136,16 @@ export const allocationApi = {
 
   // 写入 transient（临时设置，集群重启后失效），同时清空同名 persistent，保证改动真正是临时的
   async set(clusterId: string, value: AllocationEnable): Promise<void> {
-    const res = await fetch('/api/proxy/_cluster/settings', {
-      method: 'PUT',
+    const res = await fetch('/api/proxy', {
+      method: 'POST',
       headers: { 'X-Cluster-ID': clusterId, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        transient: { [ALLOCATION_ENABLE_KEY]: value },
-        // persistent: { [ALLOCATION_ENABLE_KEY]: null },
+        path: '/_cluster/settings',
+        method: 'PUT',
+        body: JSON.stringify({
+          transient: { [ALLOCATION_ENABLE_KEY]: value },
+          // persistent: { [ALLOCATION_ENABLE_KEY]: null },
+        }),
       }),
     })
     if (!res.ok) throw new Error(`写入集群设置失败 (${res.status})`)
