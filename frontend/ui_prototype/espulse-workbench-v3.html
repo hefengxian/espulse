@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESPulse — 集群工作台 v3</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <style>
+    /* ============================================================
+       ESPulse Workbench v3
+       —— 按 ESPulse 真实栏目整合：
+          集群总览(健康/计数/节点/问题) + 索引(含别名) + 分片分布 + 恢复(_recovery)
+       —— 吸收 ChatGPT 版的长处：明确空态、最近完成留痕、指标条
+       —— 修正 v2：活动区高度封顶 + 内部滚动，主表不再被挤成 0
+       ============================================================ */
+    :root {
+      --bg: #0a0b0e;
+      --bg-2: #0f1116;
+      --bg-3: #151822;
+      --bg-4: #1b1f2b;
+      --hover: #12151e;
+      --border: #1e2230;
+      --border-2: #2a3143;
+      --text: #e7eaf2;
+      --text-2: #99a2b6;
+      --text-3: #5b6478;
+      --text-4: #3c4456;
+      --accent: #7c8bff;
+      --accent-2: #a78bfa;
+      --accent-glow: rgba(124, 139, 255, 0.14);
+      --green: #3ddc97;
+      --green-bg: rgba(61, 220, 151, 0.10);
+      --green-bd: rgba(61, 220, 151, 0.28);
+      --yellow: #f5c445;
+      --yellow-bg: rgba(245, 196, 69, 0.10);
+      --yellow-bd: rgba(245, 196, 69, 0.30);
+      --red: #ff6b6b;
+      --red-bg: rgba(255, 107, 107, 0.10);
+      --red-bd: rgba(255, 107, 107, 0.30);
+      --blue: #5aa9ff;
+      --blue-bg: rgba(90, 169, 255, 0.10);
+      --blue-bd: rgba(90, 169, 255, 0.28);
+      --violet: #b39dff;
+      --violet-bg: rgba(179, 157, 255, 0.10);
+      --violet-bd: rgba(179, 157, 255, 0.28);
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --sans: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --row-h: 26px;
+    }
+
+    html.light {
+      --bg: #f5f6f9;
+      --bg-2: #fff;
+      --bg-3: #eef0f6;
+      --bg-4: #e4e7f0;
+      --hover: #eef1f8;
+      --border: #e3e6ef;
+      --border-2: #ced3e0;
+      --text: #0b0d13;
+      --text-2: #525b70;
+      --text-3: #8a92a6;
+      --text-4: #b4bac9;
+      --accent: #5566ef;
+      --accent-glow: rgba(85, 102, 239, 0.10);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .mono {
+      font-family: var(--mono);
+    }
+
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-2);
+      border-radius: 99px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    /* 关键：整页固定高度，中间区各自滚动 —— 保证「一屏」 */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ---------- top bar ---------- */
+    .topbar {
+      height: 46px;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand .mark {
+      width: 23px;
+      height: 23px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 14px var(--accent-glow);
+    }
+
+    .brand span {
+      font-weight: 600;
+      font-size: 13.5px;
+    }
+
+    .vsep {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      flex: 0 0 auto;
+    }
+
+    .csw {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      height: 28px;
+      padding: 0 9px;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      min-width: 176px;
+    }
+
+    .cdot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--yellow);
+      box-shadow: 0 0 8px var(--yellow);
+      flex: 0 0 auto;
+    }
+
+    .csw .nm {
+      font-size: 12.5px;
+      font-weight: 500;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .csw .mod {
+      font-size: 10.5px;
+      color: var(--text-3);
+      font-family: var(--mono);
+    }
+
+    .tabs {
+      display: flex;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px;
+      height: 28px;
+    }
+
+    .tab {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-2);
+      padding: 0 11px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .tab.on {
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .grow {
+      flex: 1;
+    }
+
+    .stateSw {
+      display: flex;
+      gap: 2px;
+      padding: 2px;
+      height: 28px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .stateSw .o {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-3);
+      padding: 0 9px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .stateSw .o.on {
+      color: var(--text);
+      background: var(--bg-4);
+    }
+
+    .stateSw .o .d {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .fresh {
+      font-size: 11.5px;
+      color: var(--text-3);
+      font-family: var(--mono);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .live {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 7px var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    .live.act {
+      background: var(--yellow);
+      box-shadow: 0 0 7px var(--yellow);
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .3
+      }
+    }
+
+    .iconbtn {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .iconbtn:hover {
+      background: var(--bg-3);
+      color: var(--text);
+    }
+
+    /* ---------- vitals（集群总览：健康 + 计数 + 分配开关） ---------- */
+    .vitals {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: stretch;
+      height: 46px;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .vgrp {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 13px;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .hchip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 23px;
+      padding: 0 9px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--mono);
+    }
+
+    .hchip .pip {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .bar {
+      width: 78px;
+      height: 5px;
+      border-radius: 99px;
+      background: var(--bg-4);
+      overflow: hidden;
+    }
+
+    .bar>i {
+      display: block;
+      height: 100%;
+    }
+
+    .vstat {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.12;
+    }
+
+    .vstat .k {
+      font-size: 9.5px;
+      color: var(--text-4);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .vstat .v {
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--mono);
+    }
+
+    .vstat .v small {
+      font-size: 10px;
+      color: var(--text-3);
+      margin-left: 3px;
+      font-weight: 500;
+    }
+
+    .v.warn {
+      color: var(--yellow);
+    }
+
+    .v.bad {
+      color: var(--red);
+    }
+
+    .v.ok {
+      color: var(--text-3);
+    }
+
+    .v.good {
+      color: var(--green);
+    }
+
+    .alloc {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .alloc select {
+      height: 23px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 0 5px;
+      font-size: 11.5px;
+      font-family: var(--mono);
+    }
+
+    /* ---------- 条件性数据：活动区 ---------- */
+    .band {
+      flex: 0 0 auto;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      max-height: 40vh;
+      /* 关键：封顶，绝不吞掉主表 */
+      overflow-y: auto;
+    }
+
+    .band .idle {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 14px;
+      font-size: 11.5px;
+      color: var(--text-3);
+      font-family: var(--mono);
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .band .idle .ok {
+      color: var(--green);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    .band .idle .sep {
+      color: var(--text-4);
+    }
+
+    .band .idle .ts {
+      margin-left: auto;
+      color: var(--text-4);
+    }
+
+    .band .active {
+      display: none;
+    }
+
+    .band.on {
+      border-bottom-color: var(--border-2);
+    }
+
+    .band.on .idle {
+      display: none;
+    }
+
+    .band.on .active {
+      display: block;
+    }
+
+    .eb-head {
+      position: sticky;
+      top: 0;
+      z-index: 6;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-2);
+    }
+
+    .eb-head .ld {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--yellow);
+      box-shadow: 0 0 9px var(--yellow);
+      animation: pulse 1.4s infinite;
+    }
+
+    .eb-head .ttl {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--yellow);
+    }
+
+    .eb-head .cnt {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--text-2);
+    }
+
+    .eb-head .cnt b {
+      color: var(--text);
+    }
+
+    .eb-head .sp {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .eb-cols {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+    }
+
+    .eb-sec {
+      padding: 8px 12px 10px;
+      min-width: 0;
+    }
+
+    .eb-sec+.eb-sec {
+      border-left: 1px solid var(--border);
+    }
+
+    .eb-sec>h4 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 7px;
+    }
+
+    .eb-sec>h4 .n {
+      font-family: var(--mono);
+      color: var(--text-2);
+    }
+
+    .eb-sec>h4 .hint {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--text-4);
+    }
+
+    table.rt {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    table.rt th {
+      font-size: 9.5px;
+      letter-spacing: .05em;
+      color: var(--text-4);
+      font-weight: 600;
+      text-align: left;
+      padding: 0 6px 5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    table.rt td {
+      font-size: 11px;
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      color: var(--text-2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    table.rt tr:hover td {
+      background: var(--hover);
+    }
+
+    table.rt td.ix {
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    table.rt td.ix:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    .type {
+      display: inline-block;
+      padding: 0 5px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      border: 1px solid;
+    }
+
+    .type.peer {
+      color: var(--blue);
+      border-color: var(--blue-bd);
+      background: var(--blue-bg);
+    }
+
+    .type.snapshot {
+      color: var(--violet);
+      border-color: var(--violet-bd);
+      background: var(--violet-bg);
+    }
+
+    .type.store,
+    .type.existing_store,
+    .type.replica {
+      color: var(--text-3);
+      border-color: var(--border-2);
+      background: var(--bg-3);
+    }
+
+    .stage.done {
+      color: var(--green);
+    }
+
+    .stage.index {
+      color: var(--yellow);
+    }
+
+    .arrow {
+      color: var(--text-4);
+      margin: 0 3px;
+    }
+
+    .prog {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .prog .track {
+      width: 32px;
+      height: 4px;
+      border-radius: 99px;
+      background: var(--bg-4);
+      overflow: hidden;
+      flex: 0 0 auto;
+    }
+
+    .prog .track>i {
+      display: block;
+      height: 100%;
+      background: var(--green);
+    }
+
+    .prog.stuck .track>i {
+      background: var(--red);
+    }
+
+    .prog .pct {
+      font-size: 10px;
+      color: var(--text-3);
+      min-width: 26px;
+    }
+
+    .prog .ratio {
+      font-size: 10px;
+      color: var(--text-4);
+    }
+
+    tr.stuck td {
+      background: rgba(255, 107, 107, .05);
+    }
+
+    .done-strip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 12px 1px;
+      font-size: 10.5px;
+      font-family: var(--mono);
+      color: var(--text-3);
+      flex-wrap: wrap;
+    }
+
+    .done-strip .lab {
+      color: var(--green);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .done-strip .it b {
+      color: var(--text-2);
+      font-weight: 500;
+    }
+
+    .plist {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .prow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-family: var(--mono);
+      padding: 3px 6px;
+      border-radius: 5px;
+      cursor: pointer;
+      color: var(--text-2);
+    }
+
+    .prow:hover {
+      background: var(--bg-3);
+      color: var(--text);
+    }
+
+    .prow .ix {
+      color: var(--accent);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .prow .rs {
+      margin-left: auto;
+      color: var(--text-3);
+      font-size: 10.5px;
+      flex: 0 0 auto;
+    }
+
+    .psub {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--text-4);
+      margin: 7px 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .psub .n {
+      color: var(--yellow);
+      font-family: var(--mono);
+    }
+
+    /* ---------- toolbar（真实控件） ---------- */
+    .toolbar {
+      flex: 0 0 auto;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+
+    .seg {
+      display: flex;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px;
+      height: 27px;
+      flex: 0 0 auto;
+    }
+
+    .seg .o {
+      font-size: 12px;
+      color: var(--text-2);
+      padding: 0 10px;
+      height: 21px;
+      display: flex;
+      align-items: center;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .seg .o.on {
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .tsearch {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      height: 27px;
+      padding: 0 10px;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      width: 210px;
+      flex: 0 0 auto;
+    }
+
+    .tsearch input {
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 12.5px;
+      outline: none;
+      width: 100%;
+      font-family: var(--sans);
+    }
+
+    .tsearch input::placeholder {
+      color: var(--text-3);
+    }
+
+    .tbtn {
+      height: 27px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-2);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      font-family: var(--sans);
+    }
+
+    .tbtn:hover {
+      background: var(--bg-3);
+      color: var(--text);
+    }
+
+    .tbtn.on {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border-color: rgba(124, 139, 255, .4);
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      font-size: 10.5px;
+      color: var(--text-3);
+      flex: 0 0 auto;
+    }
+
+    .sq {
+      width: 9px;
+      height: 9px;
+      border-radius: 2px;
+      display: inline-block;
+      margin-right: 4px;
+      vertical-align: -1px;
+    }
+
+    .sq.started {
+      background: var(--green);
+    }
+
+    .sq.relo {
+      background: var(--yellow);
+    }
+
+    .sq.init {
+      background: var(--blue);
+    }
+
+    .sq.rep {
+      background: transparent;
+      border: 1.5px solid var(--green);
+    }
+
+    .sq.un {
+      background: transparent;
+      border: 1.5px dashed var(--text-3);
+    }
+
+    /* ---------- 主网格 ---------- */
+    .gridwrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      background: var(--bg);
+    }
+
+    table.grid {
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+      width: 100%;
+    }
+
+    .grid thead th {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border-2);
+      font-weight: 600;
+      color: var(--text-3);
+      font-size: 9.5px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      text-align: left;
+      padding: 0 8px;
+      height: 19px;
+      white-space: nowrap;
+    }
+
+    .grid thead tr.h1 th {
+      color: var(--text-4);
+      border-bottom: 1px solid var(--border);
+      cursor: default;
+    }
+
+    .grid thead tr.h1 th.grp {
+      text-align: center;
+      color: var(--text-3);
+    }
+
+    .grid thead th.sortable {
+      cursor: pointer;
+    }
+
+    .grid thead th.sortable:hover {
+      color: var(--text);
+    }
+
+    .grid thead th.sorted {
+      color: var(--accent);
+    }
+
+    .grid td {
+      height: var(--row-h);
+      border-bottom: 1px solid var(--border);
+      padding: 0 8px;
+      font-size: 11.5px;
+      color: var(--text-2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: middle;
+    }
+
+    .grid th.frz,
+    .grid td.frz {
+      position: sticky;
+      left: 0;
+      z-index: 4;
+      background: var(--bg-2);
+      border-right: 1px solid var(--border-2);
+      box-shadow: 8px 0 12px -10px rgba(0, 0, 0, .85);
+    }
+
+    .grid tbody td.frz {
+      background: var(--bg);
+    }
+
+    .grid tbody tr:hover td,
+    .grid tbody tr:hover td.frz {
+      background: var(--hover);
+    }
+
+    th.node {
+      text-align: center;
+      padding: 3px 6px !important;
+      height: 44px !important;
+      border-left: 1px solid var(--border);
+    }
+
+    th.node .nn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      font-size: 10.5px;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    th.node .nn .star {
+      color: var(--yellow);
+      font-size: 9px;
+    }
+
+    th.node .st {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 3px;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--text-3);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    th.node .st .hi {
+      color: var(--yellow);
+    }
+
+    th.node .st .cr {
+      color: var(--red);
+    }
+
+    td.node {
+      text-align: center;
+      padding: 0 4px !important;
+      border-left: 1px solid var(--border);
+    }
+
+    td.num,
+    th.num {
+      text-align: right;
+    }
+
+    td.index {
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    td.index .hdot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    td.index .nm {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hdot.green {
+      background: var(--green);
+    }
+
+    .hdot.yellow {
+      background: var(--yellow);
+    }
+
+    .hdot.red {
+      background: var(--red);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 5px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--mono);
+      line-height: 1.5;
+    }
+
+    .pill.green {
+      color: var(--green);
+      background: var(--green-bg);
+      border: 1px solid var(--green-bd);
+    }
+
+    .pill.yellow {
+      color: var(--yellow);
+      background: var(--yellow-bg);
+      border: 1px solid var(--yellow-bd);
+    }
+
+    .pill.red {
+      color: var(--red);
+      background: var(--red-bg);
+      border: 1px solid var(--red-bd);
+    }
+
+    .dim {
+      color: var(--text-3);
+    }
+
+    .st-close {
+      color: var(--text-4);
+    }
+
+    .shardcell {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2px;
+      max-width: 46px;
+      margin: 0 auto;
+    }
+
+    .shard {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      transition: transform .1s;
+    }
+
+    .shard:hover {
+      transform: scale(1.5);
+    }
+
+    .shard.started {
+      background: var(--green);
+    }
+
+    .shard.relo {
+      background: var(--yellow);
+    }
+
+    .shard.init {
+      background: var(--blue);
+    }
+
+    .shard.rep {
+      background: transparent !important;
+    }
+
+    .shard.rep.started {
+      border: 1.5px solid var(--green);
+    }
+
+    .shard.rep.relo {
+      border: 1.5px solid var(--yellow);
+    }
+
+    .shard.rep.init {
+      border: 1.5px solid var(--blue);
+    }
+
+    .shard.un {
+      background: transparent;
+      border: 1.5px dashed var(--text-3);
+    }
+
+    tr.group td {
+      background: var(--bg-3) !important;
+      border-bottom: 1px solid var(--border-2);
+      font-weight: 600;
+      color: var(--text);
+      height: 27px;
+      cursor: pointer;
+    }
+
+    tr.group td.frz {
+      background: var(--bg-3) !important;
+    }
+
+    tr.group .gname {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    tr.child td.frz .nm {
+      padding-left: 16px;
+    }
+
+    .caret {
+      display: inline-flex;
+      transition: transform .18s;
+      color: var(--text-3);
+    }
+
+    .caret.open {
+      transform: rotate(90deg);
+    }
+
+    .axisbar {
+      position: sticky;
+      top: 0;
+      z-index: 7;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 26px;
+      padding: 0 10px;
+      background: var(--bg-3);
+      border-bottom: 1px solid var(--border-2);
+      font-size: 11px;
+      color: var(--text-3);
+      font-family: var(--mono);
+    }
+
+    .axisbar .sp {
+      margin-left: auto;
+    }
+
+    .axisbar button {
+      height: 18px;
+      padding: 0 7px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-2);
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    /* ---------- status line ---------- */
+    .statusline {
+      flex: 0 0 auto;
+      height: 25px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 12px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-2);
+      font-size: 10.5px;
+      color: var(--text-3);
+      font-family: var(--mono);
+    }
+
+    .statusline .sp {
+      margin-left: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <!-- ===== top bar ===== -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="3" fill="#fff" opacity=".9" />
+            <circle cx="7" cy="7" r="6" stroke="#fff" stroke-width="1" opacity=".45" />
+          </svg>
+        </div>
+        <span>ESPulse</span>
+      </div>
+      <div class="vsep"></div>
+      <div class="csw"><span class="cdot" id="cdot"></span><span class="nm">prod-es</span><span class="mod mono"
+          id="esVer">8.12.1</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          style="color:var(--text-3)">
+          <polyline points="7 15 12 20 17 15" />
+          <polyline points="7 9 12 4 17 9" />
+        </svg>
+      </div>
+      <div class="vsep"></div>
+      <nav class="tabs"><span class="tab on">Workbench</span><span class="tab">Dev Console</span></nav>
+      <div class="grow"></div>
+      <div class="stateSw" title="原型对照：切换数据场景">
+        <div class="o" id="swHealthy" onclick="setScenario('healthy')"><span class="d" style="color:var(--green)"></span>健康</div>
+        <div class="o on" id="swRecover" onclick="setScenario('recovering')"><span class="d" style="color:var(--yellow)"></span>恢复</div>
+      </div>
+      <div class="fresh"><span class="live" id="liveDot"></span><span id="freshTxt">更新于 2s</span></div>
+      <div class="vsep"></div>
+      <button class="iconbtn" title="刷新"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10" />
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+        </svg></button>
+      <button class="iconbtn" title="主题" onclick="document.documentElement.classList.toggle('light')"><svg width="14"
+          height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+          stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5" />
+          <line x1="12" y1="1" x2="12" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="23" />
+          <line x1="4.2" y1="4.2" x2="5.6" y2="5.6" />
+          <line x1="18.4" y1="18.4" x2="19.8" y2="19.8" />
+          <line x1="1" y1="12" x2="3" y2="12" />
+          <line x1="21" y1="12" x2="23" y2="12" />
+          <line x1="4.2" y1="19.8" x2="5.6" y2="18.4" />
+          <line x1="18.4" y1="5.6" x2="19.8" y2="4.2" />
+        </svg></button>
+    </header>
+
+    <!-- ===== vitals：集群总览（健康条 + 关键计数 + 分配开关） ===== -->
+    <div class="vitals">
+      <div class="vgrp">
+        <span class="hchip" id="healthChip"><span class="pip"></span><span id="healthTxt">YELLOW</span></span>
+        <div class="bar"><i id="asBar" style="width:94%"></i></div>
+        <span class="mono" id="asPct" style="font-size:12px;color:var(--text-2)">94.1%</span>
+      </div>
+      <div class="vgrp">
+        <div class="vstat"><span class="k">节点</span><span class="v" id="vNodes">10</span></div>
+        <div class="vstat"><span class="k">索引</span><span class="v" id="vIndices">64</span></div>
+        <div class="vstat"><span class="k">主分片</span><span class="v" id="vPri">214</span></div>
+        <div class="vstat"><span class="k">总分片</span><span class="v" id="vShards">428</span></div>
+        <div class="vstat"><span class="k">文档</span><span class="v" id="vDocs">—</span></div>
+        <div class="vstat"><span class="k">存储</span><span class="v" id="vStore">—</span></div>
+      </div>
+      <div class="vgrp">
+        <div class="vstat"><span class="k">未分配</span><span class="v" id="vUn">6</span></div>
+        <div class="vstat"><span class="k">迁移中</span><span class="v" id="vRelo">3</span></div>
+        <div class="vstat"><span class="k">初始化</span><span class="v" id="vInit">0</span></div>
+      </div>
+      <div class="vgrp">
+        <div class="vstat"><span class="k">恢复吞吐</span><span class="v" id="vTput">142 MB/s</span></div>
+        <div class="vstat"><span class="k">剩余</span><span class="v" id="vEta">~2m14s</span></div>
+      </div>
+      <div class="vgrp">
+        <div class="alloc">
+          <span class="k">分片分配</span>
+          <select id="allocSel" onchange="onAllocChange()">
+            <option value="all">all</option>
+            <option value="primaries">primaries</option>
+            <option value="new_primaries">new_primaries</option>
+            <option value="none">none</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 条件性数据：活动区 ===== -->
+    <div class="band" id="band">
+      <div class="idle" id="bandIdle">
+        <span class="ok"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>一切正常</span>
+        <span class="sep">·</span><span>无恢复 / 搬迁</span>
+        <span class="sep">·</span><span>无未分配分片</span>
+        <span class="sep">·</span><span>无非 Green 索引</span>
+        <span class="ts">采集于 2s 前</span>
+      </div>
+      <div class="active" id="bandActive">
+        <div class="eb-head">
+          <span class="ld"></span><span class="ttl">活动中</span>
+          <span class="cnt" id="ebCnt"></span>
+          <span class="sp" id="ebSum"></span>
+        </div>
+        <div class="eb-cols">
+          <section class="eb-sec">
+            <h4>分片恢复 / 搬迁 <span class="n" id="recCount"></span><span class="hint">按「进度低 · 卡得久」优先，展示前 12 条</span></h4>
+            <table class="rt" id="recTable">
+              <colgroup>
+                <col style="width:150px"><col style="width:46px"><col style="width:78px"><col style="width:60px">
+                <col style="width:140px"><col style="width:86px"><col style="width:96px"><col style="width:86px">
+                <col style="width:52px">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>索引</th><th>分片</th><th>类型</th><th>阶段</th><th>源 → 目标</th><th>文件</th><th>字节</th><th>translog</th><th>耗时</th>
+                </tr>
+              </thead>
+              <tbody id="recBody"></tbody>
+            </table>
+            <div class="done-strip" id="doneStrip"></div>
+          </section>
+          <section class="eb-sec">
+            <h4>问题 <span class="n" id="probCount"></span><span class="hint">未分配 / 非 Green</span></h4>
+            <div class="psub">未分配分片 <span class="n" id="unCount"></span></div>
+            <div class="plist" id="unList"></div>
+            <div class="psub">非 Green 索引 <span class="n" id="badCount"></span></div>
+            <div class="plist" id="badList"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== toolbar：真实控件 ===== -->
+    <div class="toolbar">
+      <div class="seg" id="viewSeg">
+        <span class="o on" data-view="index" onclick="setView('index')">索引</span>
+        <span class="o" data-view="node" onclick="setView('node')">节点</span>
+        <span class="o" data-view="alias" onclick="setView('alias')">别名</span>
+      </div>
+      <div class="tsearch">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" style="color:var(--text-3)">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input id="search" placeholder="过滤索引名 / 别名…" oninput="onSearch()" />
+      </div>
+      <button class="tbtn on" id="hideSysBtn" onclick="toggleHideSys()">隐藏 . 系统索引</button>
+      <button class="tbtn" id="probBtn" onclick="toggleOnlyProblems()">只看有问题的</button>
+      <button class="tbtn" id="groupBtn" onclick="toggleGroup()">按前缀聚合</button>
+      <div class="grow"></div>
+      <div class="legend">
+        <span><span class="sq started"></span>主</span>
+        <span><span class="sq rep"></span>副本</span>
+        <span><span class="sq relo"></span>迁移</span>
+        <span><span class="sq init"></span>初始化</span>
+        <span><span class="sq un"></span>未分配</span>
+      </div>
+    </div>
+
+    <!-- ===== 主网格 ===== -->
+    <div class="gridwrap" id="gridwrap">
+      <div class="axisbar" id="axisbar" style="display:none"></div>
+      <table class="grid" id="grid"></table>
+    </div>
+
+    <div class="statusline">
+      <span id="countLine"></span>
+      <span id="viewHint"></span>
+      <span class="sp" id="sumLine"></span>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       Mock —— 字段严格对齐 ESPulse 真实接口
+       index: index/health/status/pri/rep/docs.count/store.size/index_rate/search_rate
+       node : name/node.role/master/heap.percent/cpu/disk.used_percent/load_1m..15m/分片数
+       shard: index/shard/prirep/state/node/unassigned.reason
+       alias: alias/index/is_write_index/filter/routing.index/routing.search
+       recovery(_recovery): index/shard/prirep/type/stage/source→target/files/bytes/translog
+       ============================================================ */
+    let seed = 20261010;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+    const NODES = [
+      { name: 'es-master-01', role: 'm', master: true, heap: 17, cpu: 6, disk: 11, load: 0.12 },
+      { name: 'es-master-02', role: 'm', master: false, heap: 21, cpu: 4, disk: 12, load: 0.15 },
+      { name: 'es-data-01', role: 'd', master: false, heap: 63, cpu: 38, disk: 54, load: 0.62 },
+      { name: 'es-data-02', role: 'd', master: false, heap: 58, cpu: 31, disk: 49, load: 0.55 },
+      { name: 'es-data-03', role: 'd', master: false, heap: 71, cpu: 44, disk: 62, load: 0.81 },
+      { name: 'es-data-04', role: 'd', master: false, heap: 55, cpu: 22, disk: 41, load: 0.44 },
+      { name: 'es-data-05', role: 'd', master: false, heap: 66, cpu: 51, disk: 58, load: 0.73 },
+      { name: 'es-data-06', role: 'd', master: false, heap: 74, cpu: 63, disk: 77, load: 0.98 },
+      { name: 'es-data-07', role: 'd', master: false, heap: 88, cpu: 79, disk: 84, load: 1.42 },
+      { name: 'es-data-08', role: 'd', master: false, heap: 49, cpu: 19, disk: 38, load: 0.33 },
+    ];
+    const DNODES = NODES.filter(n => n.role === 'd').map(n => n.name);
+
+    const FAMILIES = [
+      { prefix: 'logs-app-', style: 'date', count: 14, pri: 6, rep: 1, base: '2026.09', doc: 42, store: 3.1, heat: 3 },
+      { prefix: 'logs-nginx-', style: 'date', count: 10, pri: 4, rep: 1, base: '2026.09', doc: 30, store: 2.2, heat: 2 },
+      { prefix: 'metrics-prod-', style: 'seq', count: 1, pri: 4, rep: 1, base: '000031', doc: 260, store: 8.4, heat: 4 },
+      { prefix: 'traces-apm-', style: 'date', count: 12, pri: 5, rep: 1, base: '2026.09', doc: 18, store: 1.6, heat: 5 },
+      { prefix: 'orders-', style: 'month', count: 8, pri: 3, rep: 1, base: '2026.02', doc: 12, store: 1.1, heat: 2 },
+      { prefix: 'events-ingest-', style: 'seq', count: 1, pri: 8, rep: 1, base: '000004', doc: 190, store: 6.2, heat: 5 },
+      { prefix: 'audit-security-', style: 'month', count: 7, pri: 2, rep: 1, base: '2026.04', doc: 6, store: 0.5, heat: 1 },
+      { prefix: '.internal-', style: 'date', count: 4, pri: 1, rep: 1, base: '2026.09', doc: 1, store: 0.05, heat: 0 },
+    ];
+    const pad = (n, w = 2) => String(n).padStart(w, '0');
+    function famName(f, i) {
+      if (f.style === 'date') { const [y, m] = f.base.split('.'); return `${f.prefix}${y}.${pad(m)}.${pad((i * 2) % 28 + 1)}`; }
+      if (f.style === 'month') { const [y, m] = f.base.split('.'); return `${f.prefix}${y}.${pad(Number(m) + i)}`; }
+      return f.prefix + pad(Number(f.base) + i, 6);
+    }
+
+    const BASE = [];
+    FAMILIES.forEach(f => { for (let i = 0; i < f.count; i++) { const name = famName(f, i); BASE.push({ name, family: f.prefix, isSystem: name.startsWith('.'), pri: f.pri, rep: f.rep, docs: Math.round(f.doc * (0.4 + rnd()) * 1e6), store: +(f.store * (0.4 + rnd())).toFixed(1), wr: Math.round(f.heat * (200 + rnd() * 2600)), qr: Math.round(f.heat * (80 + rnd() * 900)), status: rnd() < 0.08 ? 'close' : 'open', _bad: rnd() < 0.22 ? (rnd() < 0.3 ? 'red' : 'yellow') : 'green' }); } });
+
+    const ALIASES = [
+      { alias: 'logs-current', index: 'logs-app-2026.09.27', write: true, filter: '-', ri: '-', rs: '-' },
+      { alias: 'logs-read', index: 'logs-app-*', write: false, filter: '-', ri: '-', rs: '-' },
+      { alias: 'metrics-live', index: 'metrics-prod-000031', write: true, filter: '-', ri: '-', rs: '-' },
+      { alias: 'orders-active', index: 'orders-2026.09', write: false, filter: '{"term":{"region":"cn"}}', ri: 'r1', rs: 'r1' },
+      { alias: 'audit-archive', index: 'audit-security-2026.08', write: false, filter: '-', ri: '-', rs: '-' },
+    ];
+
+    const DATA = { scenario: 'recovering', view: 'index', search: '', hideSys: true, onlyProblems: false, group: false, sort: 'store', order: 'desc', nodePage: 1, nodePageSize: 20, collapsed: new Set(), completed: [] };
+    let RECOVERY = [];
+    let ALLOC = 'all';
+
+    const curIndices = () => BASE.map(b => { const health = DATA.scenario === 'recovering' ? b._bad : 'green'; return { ...b, health, docs: health === 'red' ? 0 : b.docs, store: health === 'red' ? 0 : b.store }; });
+    const curNodes = () => NODES.map(n => DATA.scenario === 'recovering' ? { ...n, heap: Math.min(94, n.heap + 8), cpu: Math.min(95, n.cpu + 14), disk: n.disk, shards: 20 + (n.heap * 3) % 60 } : { ...n, shards: 16 + (n.heap * 2) % 40 });
+
+    function assignShards(idx) {
+      const map = {}; const un = []; const n = DNODES.length;
+      for (let s = 0; s < idx.pri; s++) {
+        const base = (s * 3 + idx.name.length) % n;
+        if (idx.health === 'red' && s === 0) un.push({ shard: s, pri: true, reason: 'NO_VALID_SHARD_COPY' });
+        else (map[DNODES[base]] = map[DNODES[base]] || []).push({ shard: s, pri: true, state: 'started' });
+        for (let r = 1; r <= idx.rep; r++) {
+          const rNode = DNODES[(base + r * 4 + 1) % n]; const roll = rnd(); let st = 'started';
+          if (idx.health === 'red') st = roll < 0.35 ? 'unassigned' : 'started';
+          else if (idx.health === 'yellow') st = roll < 0.2 ? 'unassigned' : roll < 0.36 ? 'relocating' : 'started';
+          if (st === 'unassigned') { if (un.length < 4) un.push({ shard: s, pri: false, reason: 'NODE_LEFT' }); }
+          else (map[rNode] = map[rNode] || []).push({ shard: s, pri: false, state: st });
+        }
+      }
+      idx._shards = map; idx._un = un;
+    }
+
+    const REC_TYPES = ['PEER', 'PEER', 'PEER', 'SNAPSHOT', 'EXISTING_STORE', 'REPLICA'];
+    const REC_STAGES = ['INIT', 'INDEX', 'INDEX', 'FINALIZE'];
+    function buildRecovery(idxs) {
+      if (DATA.scenario !== 'recovering') { RECOVERY = []; DATA.completed = []; return; }
+      const pool = idxs.filter(i => i.health !== 'green');
+      const src = pool.length ? pool : idxs;
+      RECOVERY = Array.from({ length: 20 }, (_, i) => {
+        const ix = src[i % src.length];
+        const type = REC_TYPES[Math.floor(rnd() * REC_TYPES.length)];
+        const stage = REC_STAGES[Math.floor(rnd() * REC_STAGES.length)];
+        const totalBytes = Math.round((0.2 + rnd() * 6) * 1e9);
+        const bPct = 0.05 + rnd() * 0.9;
+        const filesTotal = 20 + Math.floor(rnd() * 900);
+        const elapsed = Math.round(3 + rnd() * 240);
+        const stuck = bPct < 0.2 && elapsed > 120;
+        const source = NODES[Math.floor(rnd() * NODES.length)].name;
+        let target = DNODES[Math.floor(rnd() * DNODES.length)];
+        if (target === source) target = DNODES[(DNODES.indexOf(target) + 1) % DNODES.length];
+        return { index: ix.name, shard: Math.floor(rnd() * ix.pri), pri: rnd() < 0.6, type, stage, source, target, files: { done: Math.round(filesTotal * bPct), total: filesTotal }, bytes: { done: Math.round(totalBytes * bPct), total: totalBytes }, translog: { done: Math.round(rnd() * 4200), total: 4200 }, elapsed, stuck };
+      }).sort((a, b) => (a.stuck === b.stuck ? 0 : a.stuck ? -1 : 1) || (a.bytes.done / a.bytes.total) - (b.bytes.done / b.bytes.total));
+      // 本次会话刚完成（短窗口留痕，不落长期历史）
+      DATA.completed = [
+        { index: 'logs-app-2026.09.14', shard: 3, pri: false, type: 'PEER', secs: 12 },
+        { index: 'traces-apm-2026.09.11', shard: 1, pri: true, type: 'SNAPSHOT', secs: 41 },
+      ];
+    }
+
+    /* ---------- format ---------- */
+    const fmtInt = n => Number(n).toLocaleString('en-US');
+    const fmtC = n => n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n);
+    const fmtGB = g => g >= 1024 ? (g / 1024).toFixed(2) + ' TB' : g < 1 ? Math.round(g * 1024) + ' MB' : g.toFixed(1) + ' GB';
+    const fmtBytes = b => b >= 1e9 ? (b / 1e9).toFixed(2) + 'GB' : b >= 1e6 ? (b / 1e6).toFixed(0) + 'MB' : (b / 1e3).toFixed(0) + 'KB';
+    const fmtRate = v => v === 0 ? '0' : v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'k' : String(v);
+    const fmtTime = s => s >= 60 ? `${Math.floor(s / 60)}m${pad(s % 60)}s` : s + 's';
+    const pctOf = (a, b) => b ? Math.round(a / b * 100) : 0;
+
+    /* ============ band ============ */
+    function renderBand(idxs) {
+      const band = document.getElementById('band');
+      if (DATA.scenario !== 'recovering') { band.classList.remove('on'); return; }
+      band.classList.add('on');
+      const un = []; const bad = [];
+      idxs.forEach(i => { (i._un || []).forEach(s => un.push({ i, s })); if (i.health !== 'green') bad.push(i); });
+      const totB = RECOVERY.reduce((a, r) => a + r.bytes.total, 0), doneB = RECOVERY.reduce((a, r) => a + r.bytes.done, 0);
+      const avg = totB ? Math.round(doneB / totB * 100) : 0;
+      document.getElementById('ebCnt').innerHTML = `恢复中 <b>${RECOVERY.length}</b> · 未分配 <b>${un.length}</b> · 非 Green <b>${bad.length}</b>`;
+      document.getElementById('ebSum').textContent = `共 ${fmtBytes(totB)} · 平均 ${avg}% · 142 MB/s · 预计 2m14s`;
+      document.getElementById('recCount').textContent = RECOVERY.length;
+      document.getElementById('probCount').textContent = un.length + bad.length;
+      document.getElementById('recBody').innerHTML = RECOVERY.slice(0, 12).map(r => {
+        const bp = pctOf(r.bytes.done, r.bytes.total), fp = pctOf(r.files.done, r.files.total), tp = pctOf(r.translog.done, r.translog.total);
+        return `<tr class="${r.stuck ? 'stuck' : ''}">
+          <td class="ix" onclick="filterTo('${r.index}')" title="${r.index}">${r.index}</td>
+          <td>${r.pri ? 'P' : 'R'}${r.shard}</td>
+          <td><span class="type ${r.type.toLowerCase()}">${r.type}</span></td>
+          <td class="stage ${r.stage.toLowerCase()}">${r.stage}</td>
+          <td><span class="dim">${r.source}</span><span class="arrow">→</span>${r.target}</td>
+          <td><div class="prog"><span class="track"><i style="width:${fp}%"></i></span><span class="pct">${fp}%</span></div></td>
+          <td><div class="prog ${r.stuck ? 'stuck' : ''}"><span class="track"><i style="width:${bp}%"></i></span><span class="pct">${bp}%</span></div></td>
+          <td><div class="prog"><span class="track"><i style="width:${tp}%"></i></span><span class="pct">${tp}%</span></div></td>
+          <td style="${r.stuck ? 'color:var(--red)' : 'color:var(--text-3)'}">${fmtTime(r.elapsed)}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('doneStrip').innerHTML = `<span class="lab"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>本次会话刚完成 (${DATA.completed.length})</span>` +
+        DATA.completed.map(c => `<span class="it"><b>${c.index}</b> ${c.pri ? 'P' : 'R'}${c.shard} · ${c.type} · ${c.secs}s 前</span>`).join('');
+      document.getElementById('unCount').textContent = un.length;
+      document.getElementById('unList').innerHTML = un.slice(0, 5).map(x => `<div class="prow" onclick="filterTo('${x.i.name}')"><span class="ix">${x.i.name}</span><span>#${x.s.shard}</span><span class="rs">${x.s.reason}</span></div>`).join('') || '<div class="prow dim">无</div>';
+      document.getElementById('badCount').textContent = bad.length;
+      document.getElementById('badList').innerHTML = bad.slice(0, 5).map(i => `<div class="prow" onclick="filterTo('${i.name}')"><span class="hdot ${i.health}" style="width:6px;height:6px;border-radius:50%;display:inline-block"></span><span class="ix">${i.name}</span><span class="rs">${i.health}</span></div>`).join('') || '<div class="prow dim">无</div>';
+    }
+
+    /* ============ grid ============ */
+    const shardCell = list => (!list || !list.length) ? '<span class="dim" style="font-size:9px">·</span>' :
+      '<div class="shardcell">' + list.slice(0, 8).map(s => { const st = s.state === 'relocating' ? 'relo' : s.state; return `<span class="shard ${st}${s.pri ? '' : ' rep'}" title="${s.pri ? 'P' : 'R'}${s.shard} · ${s.state}"></span>`; }).join('') + '</div>';
+    const unCell = list => (!list || !list.length) ? '<span class="dim" style="font-size:9px">·</span>' :
+      '<div class="shardcell">' + list.map(s => `<span class="shard un" title="${s.pri ? 'P' : 'R'}${s.shard} · ${s.reason}"></span>`).join('') + '</div>';
+    const healthPill = h => `<span class="pill ${h}"><span style="width:5px;height:5px;border-radius:50%;background:currentColor"></span>${h}</span>`;
+
+    function filteredIndices(idxs) {
+      const q = DATA.search.trim().toLowerCase();
+      const list = idxs.filter(i => (!DATA.hideSys || !i.isSystem) && (!DATA.onlyProblems || i.health !== 'green') && (!q || i.name.toLowerCase().includes(q)));
+      const k = DATA.sort, dir = DATA.order === 'asc' ? 1 : -1;
+      const val = i => k === 'index' ? i.name : k === 'health' ? ({ red: 0, yellow: 1, green: 2 })[i.health] : k === 'docs' ? i.docs : k === 'wr' ? i.wr : k === 'qr' ? i.qr : i.store;
+      return list.sort((a, b) => { const pa = a.health !== 'green' ? 0 : 1, pb = b.health !== 'green' ? 0 : 1; if (pa !== pb) return pa - pb; const va = val(a), vb = val(b); return va < vb ? -dir : va > vb ? dir : 0; });
+    }
+
+    function sortHead(key, label, extra = '') {
+      const on = DATA.sort === key;
+      const arrow = on ? (DATA.order === 'asc' ? ' ↑' : ' ↓') : '';
+      return `<th class="num sortable ${on ? 'sorted' : ''} ${extra}" onclick="setSort('${key}')">${label}${arrow}</th>`;
+    }
+
+    function renderIndexView(idxs) {
+      const rows = filteredIndices(idxs);
+      let head = '<colgroup><col style="width:212px"><col style="width:62px"><col style="width:44px"><col style="width:50px"><col style="width:70px"><col style="width:70px"><col style="width:58px"><col style="width:58px">';
+      NODES.forEach(() => head += '<col style="width:60px">'); head += '<col style="width:60px"></colgroup>';
+      head += '<thead><tr class="h1"><th class="frz" colspan="8" style="text-align:left">索引 / 汇总 (' + rows.length + ')</th><th class="grp" colspan="' + NODES.length + '">节点 · 分片分布（列头 = 节点 heap/cpu/disk）</th><th class="grp">未分配</th></tr>';
+      head += '<tr><th class="frz sortable ' + (DATA.sort === 'index' ? 'sorted' : '') + '" onclick="setSort(\'index\')">索引</th><th>Health</th><th>状态</th><th>主/副</th>';
+      head += sortHead('docs', '文档') + sortHead('store', '存储') + sortHead('wr', '写入/s') + sortHead('qr', '查询/s');
+      NODES.forEach(n => { const hc = n.heap >= 85 ? 'cr' : n.heap >= 70 ? 'hi' : '', cc = n.cpu >= 80 ? 'cr' : n.cpu >= 65 ? 'hi' : '', dc = n.disk >= 80 ? 'cr' : n.disk >= 70 ? 'hi' : ''; head += `<th class="node"><div class="nn">${n.master ? '<span class="star">★</span>' : ''}${n.name}</div><div class="st"><span class="${hc}">H<b>${n.heap}</b></span><span class="${cc}">C<b>${n.cpu}</b></span><span class="${dc}">D<b>${n.disk}</b></span></div></th>`; });
+      head += '<th class="node"><div class="nn">未分配</div><div class="st">pseudo</div></th></tr></thead>';
+
+      let body = '<tbody>';
+      const emit = (i, child) => {
+        let h = `<tr class="${child ? 'child' : ''}"><td class="frz index" title="${i.name}"><span class="hdot ${i.health}"></span><span class="nm">${i.name}</span></td>`;
+        h += `<td>${healthPill(i.health)}</td><td class="st-${i.status} mono">${i.status}</td><td class="num mono">${i.pri}<span class="dim">/${i.rep}</span></td>`;
+        h += `<td class="num mono">${fmtC(i.docs)}</td><td class="num mono">${fmtGB(i.store)}</td><td class="num mono">${fmtRate(i.wr)}</td><td class="num mono">${fmtRate(i.qr)}</td>`;
+        NODES.forEach(n => h += `<td class="node">${shardCell(i._shards[n.name])}</td>`);
+        h += `<td class="node">${unCell(i._un)}</td></tr>`;
+        return h;
+      };
+      if (DATA.group) {
+        const g = new Map(); rows.forEach(i => { if (!g.has(i.family)) g.set(i.family, []); g.get(i.family).push(i); });
+        g.forEach((items, fam) => {
+          const open = !DATA.collapsed.has(fam), worst = items.some(i => i.health === 'red') ? 'red' : items.some(i => i.health === 'yellow') ? 'yellow' : 'green';
+          const docs = items.reduce((a, i) => a + i.docs, 0), store = items.reduce((a, i) => a + i.store, 0);
+          body += `<tr class="group" onclick="toggleGroupRow('${fam}')"><td class="frz"><span class="gname"><span class="caret ${open ? 'open' : ''}"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span><span class="hdot ${worst}"></span>${fam}*</span></td><td>${healthPill(worst)}</td><td class="mono dim">${items.length}×</td><td class="num mono">${items.reduce((a, i) => a + i.pri, 0)}<span class="dim">/${items.reduce((a, i) => a + i.rep, 0)}</span></td><td class="num mono">${fmtC(docs)}</td><td class="num mono">${fmtGB(store)}</td><td class="num dim">Σ</td><td class="num dim">Σ</td>${NODES.map(() => '<td class="node dim">·</td>').join('')}<td class="node dim">·</td></tr>`;
+          if (open) items.forEach(i => body += emit(i, true));
+        });
+      } else rows.slice(0, 400).forEach(i => body += emit(i, false));
+      body += '</tbody>';
+      document.getElementById('grid').innerHTML = head + body;
+      document.getElementById('axisbar').style.display = 'none';
+      setStatus(rows.length, rows, '索引视角 · 行=索引，列=节点分片');
+    }
+
+    function renderNodeView(idxs) {
+      // 行=节点，列=索引轴（分页），与「分片分布 · 按节点看」一致
+      const rows = filteredIndices(idxs);
+      const ps = DATA.nodePageSize, pages = Math.max(1, Math.ceil(rows.length / ps));
+      if (DATA.nodePage > pages) DATA.nodePage = pages;
+      const start = (DATA.nodePage - 1) * ps;
+      const pageIdx = rows.slice(start, start + ps);
+      const nodes = curNodes();
+      let head = '<colgroup><col style="width:150px"><col style="width:60px"><col style="width:52px"><col style="width:52px"><col style="width:52px"><col style="width:120px"><col style="width:56px"><col style="width:62px">';
+      pageIdx.forEach(() => head += '<col style="width:54px">'); head += '</colgroup>';
+      head += `<thead><tr class="h1"><th class="frz" colspan="8" style="text-align:left">节点 / 汇总 (${nodes.length})</th><th class="grp" colspan="${pageIdx.length}">索引（第 ${DATA.nodePage}/${pages} 页 · 每页 ${ps}）· 分片方块</th></tr>`;
+      head += '<tr><th class="frz">节点 / 角色</th><th>Master</th><th class="num">Heap</th><th class="num">CPU</th><th class="num">磁盘</th><th>负载 1/5/15m</th><th class="num">分片</th><th class="num">未分配</th>';
+      pageIdx.forEach(i => head += `<th class="node" title="${i.name}"><div class="nn">${i.name.length > 9 ? i.name.slice(0, 8) + '…' : i.name}</div><div class="st">${i.health}</div></th>`);
+      head += '</tr></thead>';
+      let body = '<tbody>';
+      nodes.forEach(n => {
+        const shardTotal = n.shards;
+        let h = `<tr><td class="frz" style="color:var(--text);font-family:var(--mono)"><span class="hdot ${n.master ? 'yellow' : 'green'}"></span> ${n.name}<div class="dim" style="font-size:9.5px;padding-left:13px">${n.role}</div></td>`;
+        h += `<td>${n.master ? '<span style="color:var(--yellow)">★</span>' : '<span class="dim">-</span>'}</td>`;
+        h += `<td class="num ${n.heap >= 85 ? '' : ''}" style="${n.heap >= 85 ? 'color:var(--red)' : n.heap >= 70 ? 'color:var(--yellow)' : ''}">${n.heap}%</td>`;
+        h += `<td class="num" style="${n.cpu >= 80 ? 'color:var(--red)' : n.cpu >= 65 ? 'color:var(--yellow)' : ''}">${n.cpu}%</td>`;
+        h += `<td class="num" style="${n.disk >= 80 ? 'color:var(--red)' : n.disk >= 70 ? 'color:var(--yellow)' : ''}">${n.disk}%</td>`;
+        h += `<td class="mono">${n.load.toFixed(2)} / ${(n.load * 2.1).toFixed(2)} / ${(n.load * 3.3).toFixed(2)}</td>`;
+        h += `<td class="num mono">${shardTotal}</td><td class="num mono ${DATA.scenario === 'recovering' ? '' : 'dim'}">${DATA.scenario === 'recovering' ? (n.disk > 80 ? 2 : 0) : 0}</td>`;
+        pageIdx.forEach(i => h += `<td class="node">${shardCell((i._shards[n.name] || []))}</td>`);
+        h += '</tr>';
+        body += h;
+      });
+      body += '</tbody>';
+      document.getElementById('grid').innerHTML = head + body;
+      const bar = document.getElementById('axisbar');
+      bar.style.display = 'flex';
+      bar.innerHTML = `<span>索引轴分页（无界轴）</span><span class="sp"></span><button ${DATA.nodePage <= 1 ? 'disabled' : ''} onclick="nodePage(-1)">上一页</button><span>第 ${DATA.nodePage} / ${pages} 页 · 共 ${rows.length} 个索引</span><button ${DATA.nodePage >= pages ? 'disabled' : ''} onclick="nodePage(1)">+${ps}</button>`;
+      setStatus(rows.length, rows, '节点视角 · 行=节点，列=索引（分片分布）');
+    }
+
+    function renderAliasView() {
+      const q = DATA.search.trim().toLowerCase();
+      const list = ALIASES.filter(a => !q || (a.alias + ' ' + a.index).toLowerCase().includes(q));
+      let head = '<colgroup><col style="width:220px"><col style="width:280px"><col style="width:70px"><col style="width:260px"><col style="width:120px"></colgroup>';
+      head += `<thead><tr class="h1"><th class="frz" colspan="5" style="text-align:left">别名 (${list.length}) · 别名 → 索引映射</th></tr>`;
+      head += '<tr><th class="frz">别名</th><th>指向索引</th><th>写别名</th><th>Filter</th><th>Routing</th></tr></thead>';
+      let body = '<tbody>';
+      list.forEach(a => {
+        body += `<tr><td class="frz index"><span class="nm">${a.alias}</span></td><td class="mono">${a.index}</td>`;
+        body += `<td>${a.write ? '<span class="pill green">WRITE</span>' : '<span class="dim">-</span>'}</td>`;
+        body += `<td class="mono dim" title="${a.filter}">${a.filter}</td><td class="mono dim">${a.rw || (a.ri !== '-' ? '写 ' + a.ri : '') + (a.rs !== '-' ? ' 读 ' + a.rs : '') || '-'}</td></tr>`;
+      });
+      body += '</tbody>';
+      document.getElementById('grid').innerHTML = head + body;
+      document.getElementById('axisbar').style.display = 'none';
+      setStatus(list.length, [], '别名视角');
+    }
+
+    function setStatus(shown, rows, hint) {
+      document.getElementById('countLine').textContent = DATA.view === 'alias' ? `别名 ${shown} 条` : `共 ${fmtInt(BASE.length)} 个索引 · 显示 ${fmtInt(Math.min(shown, DATA.view === 'index' && !DATA.group ? 400 : shown))}`;
+      document.getElementById('viewHint').textContent = hint;
+      const store = (rows || []).reduce((a, i) => a + (i.store || 0), 0);
+      document.getElementById('sumLine').textContent = (rows && rows.length) ? `匹配存储 ${fmtGB(store)} · 速率窗口 60s` : '采集周期 5s · 速率窗口 60s';
+    }
+
+    /* ============ render ============ */
+    function render() {
+      const idxs = curIndices(); idxs.forEach(assignShards);
+      buildRecovery(idxs);
+      renderBand(idxs);
+      if (DATA.view === 'index') renderIndexView(idxs);
+      else if (DATA.view === 'node') renderNodeView(idxs);
+      else renderAliasView();
+
+      const rec = DATA.scenario === 'recovering';
+      document.getElementById('healthTxt').textContent = rec ? 'YELLOW' : 'GREEN';
+      const hc = document.getElementById('healthChip');
+      hc.style.color = rec ? 'var(--yellow)' : 'var(--green)';
+      hc.style.background = rec ? 'var(--yellow-bg)' : 'var(--green-bg)';
+      hc.style.border = '1px solid ' + (rec ? 'var(--yellow-bd)' : 'var(--green-bd)');
+      document.getElementById('asBar').style.width = rec ? '94%' : '100%';
+      document.getElementById('asBar').style.background = rec ? 'var(--yellow)' : 'var(--green)';
+      document.getElementById('asPct').textContent = rec ? '94.1%' : '100%';
+      document.getElementById('cdot').style.background = rec ? 'var(--yellow)' : 'var(--green)';
+      const nodes = curNodes();
+      document.getElementById('vNodes').textContent = nodes.length;
+      document.getElementById('vIndices').textContent = BASE.length;
+      const pri = idxs.reduce((a, i) => a + i.pri, 0), rep = idxs.reduce((a, i) => a + i.rep, 0);
+      document.getElementById('vPri').textContent = fmtInt(pri);
+      document.getElementById('vShards').textContent = fmtInt(pri + rep);
+      document.getElementById('vDocs').textContent = fmtC(idxs.reduce((a, i) => a + i.docs, 0));
+      document.getElementById('vStore').textContent = fmtGB(idxs.reduce((a, i) => a + i.store, 0));
+      const unTot = idxs.reduce((a, i) => a + (i._un || []).length, 0);
+      const reloTot = DATA.scenario === 'recovering' ? 3 : 0;
+      document.getElementById('vUn').textContent = unTot;
+      document.getElementById('vUn').className = 'v ' + (unTot ? 'bad' : 'ok');
+      document.getElementById('vRelo').textContent = reloTot;
+      document.getElementById('vRelo').className = 'v ' + (reloTot ? 'warn' : 'ok');
+      document.getElementById('vInit').textContent = rec ? 3 : 0;
+      document.getElementById('vInit').className = 'v ' + (rec ? '' : 'ok');
+      document.getElementById('vTput').textContent = rec ? '142 MB/s' : '—';
+      document.getElementById('vEta').textContent = rec ? '~2m14s' : '—';
+      document.getElementById('liveDot').classList.toggle('act', rec);
+      document.getElementById('freshTxt').textContent = rec ? '恢复中 · 更新于 2s' : '更新于 2s';
+      document.getElementById('allocSel').value = ALLOC;
+    }
+
+    /* ============ interactions ============ */
+    function setScenario(s) { DATA.scenario = s; DATA.onlyProblems = false; document.getElementById('probBtn').classList.remove('on'); document.getElementById('swHealthy').classList.toggle('on', s === 'healthy'); document.getElementById('swRecover').classList.toggle('on', s === 'recovering'); render(); }
+    function setView(v) { DATA.view = v; $$('#viewSeg .o').forEach(o => o.classList.toggle('on', o.dataset.view === v)); render(); }
+    const $$ = s => [...document.querySelectorAll(s)];
+    function setSort(k) { if (DATA.sort === k) DATA.order = DATA.order === 'asc' ? 'desc' : 'asc'; else { DATA.sort = k; DATA.order = (k === 'index') ? 'asc' : 'desc'; } render(); }
+    function onSearch() { DATA.search = document.getElementById('search').value; render(); }
+    function toggleHideSys() { DATA.hideSys = !DATA.hideSys; document.getElementById('hideSysBtn').classList.toggle('on', DATA.hideSys); render(); }
+    function toggleOnlyProblems() { DATA.onlyProblems = !DATA.onlyProblems; document.getElementById('probBtn').classList.toggle('on', DATA.onlyProblems); if (DATA.onlyProblems) { DATA.hideSys = false; document.getElementById('hideSysBtn').classList.remove('on'); } render(); }
+    function toggleGroup() { DATA.group = !DATA.group; document.getElementById('groupBtn').classList.toggle('on', DATA.group); render(); }
+    function toggleGroupRow(f) { DATA.collapsed.has(f) ? DATA.collapsed.delete(f) : DATA.collapsed.add(f); render(); }
+    function nodePage(d) { DATA.nodePage += d; render(); }
+    function filterTo(name) { DATA.search = name; DATA.hideSys = false; document.getElementById('search').value = name; document.getElementById('hideSysBtn').classList.remove('on'); render(); }
+    function onAllocChange() { ALLOC = document.getElementById('allocSel').value; }
+
+    render();
+  </script>
+</body>
+
+</html>

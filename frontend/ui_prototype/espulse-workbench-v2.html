@@ -1,0 +1,1807 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESPulse — Cluster Workbench v2 (live)</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <style>
+    /* ============================================================
+       ESPulse Workbench v2
+       单屏工作台：总览 + 索引 + 分片 + 恢复(_recovery) 合一
+       重点：条件性数据（恢复 / 问题）在「空 ↔ 满」两种状态下的表现
+       ============================================================ */
+    :root {
+      --bg: #0a0b0e;
+      --bg-2: #0f1116;
+      --bg-3: #151822;
+      --bg-4: #1b1f2b;
+      --hover: #12151e;
+      --border: #1e2230;
+      --border-2: #2a3143;
+
+      --text: #e7eaf2;
+      --text-2: #99a2b6;
+      --text-3: #5b6478;
+      --text-4: #3c4456;
+
+      --accent: #7c8bff;
+      --accent-2: #a78bfa;
+      --accent-glow: rgba(124, 139, 255, 0.14);
+
+      --green: #3ddc97;
+      --green-bg: rgba(61, 220, 151, 0.10);
+      --green-bd: rgba(61, 220, 151, 0.28);
+      --yellow: #f5c445;
+      --yellow-bg: rgba(245, 196, 69, 0.10);
+      --yellow-bd: rgba(245, 196, 69, 0.30);
+      --red: #ff6b6b;
+      --red-bg: rgba(255, 107, 107, 0.10);
+      --red-bd: rgba(255, 107, 107, 0.30);
+      --blue: #5aa9ff;
+      --blue-bg: rgba(90, 169, 255, 0.10);
+      --blue-bd: rgba(90, 169, 255, 0.28);
+      --violet: #b39dff;
+      --violet-bg: rgba(179, 157, 255, 0.10);
+      --violet-bd: rgba(179, 157, 255, 0.28);
+
+      --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --sans: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --row-h: 26px;
+    }
+
+    html.light {
+      --bg: #f5f6f9;
+      --bg-2: #ffffff;
+      --bg-3: #eef0f6;
+      --bg-4: #e4e7f0;
+      --hover: #eef1f8;
+      --border: #e3e6ef;
+      --border-2: #ced3e0;
+      --text: #0b0d13;
+      --text-2: #525b70;
+      --text-3: #8a92a6;
+      --text-4: #b4bac9;
+      --accent: #5566ef;
+      --accent-glow: rgba(85, 102, 239, 0.10);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .mono {
+      font-family: var(--mono);
+    }
+
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-2);
+      border-radius: 99px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ---------------- top bar ---------------- */
+    .topbar {
+      height: 44px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand .mark {
+      width: 23px;
+      height: 23px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 14px var(--accent-glow);
+    }
+
+    .brand span {
+      font-weight: 600;
+      font-size: 13.5px;
+      letter-spacing: -0.2px;
+    }
+
+    .vsep {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .csw {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      height: 28px;
+      padding: 0 9px;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      min-width: 178px;
+    }
+
+    .csw:hover {
+      border-color: var(--border-2);
+    }
+
+    .cdot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--yellow);
+      box-shadow: 0 0 8px var(--yellow);
+      flex-shrink: 0;
+    }
+
+    .csw .nm {
+      font-size: 12.5px;
+      font-weight: 500;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .csw .mod {
+      font-size: 10.5px;
+      color: var(--text-3);
+      font-family: var(--mono);
+    }
+
+    .tabs {
+      display: flex;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px;
+      height: 28px;
+    }
+
+    .tab {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-2);
+      padding: 0 11px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .tab.on {
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .grow {
+      flex: 1;
+    }
+
+    /* state switch */
+    .stateSw {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px;
+      height: 28px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .stateSw .o {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-3);
+      padding: 0 9px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .stateSw .o.on {
+      color: var(--text);
+      background: var(--bg-4);
+    }
+
+    .stateSw .o .d {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .fresh {
+      font-size: 11.5px;
+      color: var(--text-3);
+      font-family: var(--mono);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 7px var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    .live.act {
+      background: var(--yellow);
+      box-shadow: 0 0 7px var(--yellow);
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .3
+      }
+    }
+
+    .iconbtn {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .iconbtn:hover {
+      background: var(--bg-3);
+      color: var(--text);
+    }
+
+    /* ---------------- vitals ---------------- */
+    .vitals {
+      height: 42px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: stretch;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+
+    .vgrp {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .hchip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 23px;
+      padding: 0 9px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--yellow);
+      background: var(--yellow-bg);
+      border: 1px solid var(--yellow-bd);
+    }
+
+    .hchip .pip {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .bar {
+      width: 84px;
+      height: 5px;
+      border-radius: 99px;
+      background: var(--bg-4);
+      overflow: hidden;
+    }
+
+    .bar>i {
+      display: block;
+      height: 100%;
+      background: var(--yellow);
+    }
+
+    .vstat {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.12;
+    }
+
+    .vstat .k {
+      font-size: 9.5px;
+      color: var(--text-4);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .vstat .v {
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--mono);
+    }
+
+    .vstat .v small {
+      font-size: 10px;
+      color: var(--text-3);
+      margin-left: 3px;
+      font-weight: 500;
+    }
+
+    .v.warn {
+      color: var(--yellow);
+    }
+
+    .v.bad {
+      color: var(--red);
+    }
+
+    .v.ok {
+      color: var(--text-3);
+    }
+
+    .v.good {
+      color: var(--green);
+    }
+
+    /* ---------------- event band (条件性数据) ---------------- */
+    .band {
+      flex-shrink: 0;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+
+    /* idle: 一条极轻的线 */
+    .band .idle {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 14px;
+      font-size: 12px;
+      color: var(--text-3);
+      font-family: var(--mono);
+    }
+
+    .band .idle .ok {
+      color: var(--green);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    .band .idle .sep {
+      color: var(--text-4);
+    }
+
+    .band .idle .ts {
+      margin-left: auto;
+      color: var(--text-4);
+    }
+
+    /* active */
+    .band .active {
+      display: none;
+    }
+
+    .band.on {
+      border-bottom: 1px solid var(--border-2);
+    }
+
+    .band.on .idle {
+      display: none;
+    }
+
+    .band.on .active {
+      display: block;
+    }
+
+    .eb-head {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, rgba(245, 196, 69, .06), transparent 40%);
+    }
+
+    .eb-head .ld {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--yellow);
+      box-shadow: 0 0 9px var(--yellow);
+      animation: pulse 1.4s infinite;
+    }
+
+    .eb-head .ttl {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--yellow);
+    }
+
+    .eb-head .cnt {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-2);
+    }
+
+    .eb-head .cnt b {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .eb-head .sp {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--text-3);
+    }
+
+    .eb-cols {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 1px;
+      background: var(--border);
+    }
+
+    .eb-sec {
+      background: var(--bg);
+      padding: 8px 12px 10px;
+      min-width: 0;
+    }
+
+    .eb-sec>h4 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 7px;
+    }
+
+    .eb-sec>h4 .n {
+      font-family: var(--mono);
+      color: var(--text-2);
+      font-weight: 600;
+    }
+
+    .eb-sec>h4 .hint {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--text-4);
+    }
+
+    /* recovery table */
+    table.rt {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    table.rt th {
+      font-size: 9.5px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--text-4);
+      font-weight: 600;
+      text-align: left;
+      padding: 0 6px 5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    table.rt td {
+      font-size: 11.5px;
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      color: var(--text-2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    table.rt tr:hover td {
+      background: var(--hover);
+    }
+
+    table.rt td.ix {
+      color: var(--text);
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    table.rt td.ix:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    .type {
+      display: inline-block;
+      padding: 0 5px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      border: 1px solid;
+    }
+
+    .type.peer {
+      color: var(--blue);
+      border-color: var(--blue-bd);
+      background: var(--blue-bg);
+    }
+
+    .type.snapshot {
+      color: var(--violet);
+      border-color: var(--violet-bd);
+      background: var(--violet-bg);
+    }
+
+    .type.store,
+    .type.existing_store,
+    .type.replica {
+      color: var(--text-3);
+      border-color: var(--border-2);
+      background: var(--bg-3);
+    }
+
+    .stage {
+      color: var(--text-2);
+    }
+
+    .stage.done {
+      color: var(--green);
+    }
+
+    .stage.index {
+      color: var(--yellow);
+    }
+
+    .arrow {
+      color: var(--text-4);
+      margin: 0 3px;
+    }
+
+    /* progress */
+    .prog {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .prog .track {
+      width: 34px;
+      height: 4px;
+      border-radius: 99px;
+      background: var(--bg-4);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .prog .track>i {
+      display: block;
+      height: 100%;
+      background: var(--green);
+    }
+
+    .prog.stuck .track>i {
+      background: var(--red);
+    }
+
+    .prog .pct {
+      font-size: 10px;
+      color: var(--text-3);
+      min-width: 26px;
+    }
+
+    .prog .ratio {
+      font-size: 10px;
+      color: var(--text-4);
+    }
+
+    tr.stuck td {
+      background: rgba(255, 107, 107, 0.05);
+    }
+
+    /* recently completed */
+    .done-strip {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 6px 12px 2px;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text-3);
+      flex-wrap: wrap;
+    }
+
+    .done-strip .lab {
+      color: var(--green);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .done-strip .it {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--text-3);
+    }
+
+    .done-strip .it b {
+      color: var(--text-2);
+      font-weight: 500;
+    }
+
+    /* problems column */
+    .plist {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .prow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11.5px;
+      font-family: var(--mono);
+      padding: 3px 6px;
+      border-radius: 5px;
+      cursor: pointer;
+      color: var(--text-2);
+    }
+
+    .prow:hover {
+      background: var(--bg-3);
+      color: var(--text);
+    }
+
+    .prow .ix {
+      color: var(--accent);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .prow .rs {
+      margin-left: auto;
+      color: var(--text-3);
+      font-size: 10.5px;
+      flex-shrink: 0;
+    }
+
+    .psub {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--text-4);
+      margin: 7px 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .psub .n {
+      color: var(--yellow);
+      font-family: var(--mono);
+    }
+
+    /* ---------------- toolbar ---------------- */
+    .toolbar {
+      height: 38px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tsearch {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      height: 27px;
+      padding: 0 10px;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      width: 230px;
+    }
+
+    .tsearch:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .tsearch input {
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 12.5px;
+      outline: none;
+      width: 100%;
+      font-family: var(--sans);
+    }
+
+    .tsearch input::placeholder {
+      color: var(--text-3);
+    }
+
+    .tbtn {
+      height: 27px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-2);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--sans);
+    }
+
+    .tbtn:hover {
+      background: var(--bg-3);
+      color: var(--text);
+    }
+
+    .tbtn.on {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border-color: rgba(124, 139, 255, .4);
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 10.5px;
+      color: var(--text-3);
+    }
+
+    .sq {
+      width: 9px;
+      height: 9px;
+      border-radius: 2px;
+      display: inline-block;
+      margin-right: 4px;
+      vertical-align: -1px;
+    }
+
+    .sq.started {
+      background: var(--green);
+    }
+
+    .sq.relo {
+      background: var(--yellow);
+    }
+
+    .sq.init {
+      background: var(--blue);
+    }
+
+    .sq.rep {
+      background: transparent;
+      border: 1.5px solid var(--green);
+    }
+
+    .sq.un {
+      background: transparent;
+      border: 1.5px dashed var(--text-3);
+    }
+
+    /* ---------------- grid ---------------- */
+    .gridwrap {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      background: var(--bg);
+    }
+
+    table.grid {
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+      width: 100%;
+    }
+
+    .grid thead th {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border-2);
+      font-weight: 600;
+      color: var(--text-3);
+      font-size: 9.5px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      text-align: left;
+      padding: 0 8px;
+      height: 19px;
+      white-space: nowrap;
+    }
+
+    .grid thead tr.h1 th {
+      color: var(--text-4);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .grid thead tr.h1 th.grp {
+      text-align: center;
+      color: var(--text-3);
+    }
+
+    .grid td {
+      height: var(--row-h);
+      border-bottom: 1px solid var(--border);
+      padding: 0 8px;
+      font-size: 11.5px;
+      color: var(--text-2);
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    .grid th.frz,
+    .grid td.frz {
+      position: sticky;
+      left: 0;
+      z-index: 4;
+      background: var(--bg-2);
+      border-right: 1px solid var(--border-2);
+      box-shadow: 8px 0 12px -10px rgba(0, 0, 0, .8);
+    }
+
+    .grid tbody td.frz {
+      background: var(--bg);
+    }
+
+    .grid tbody tr:hover td,
+    .grid tbody tr:hover td.frz {
+      background: var(--hover);
+    }
+
+    th.node {
+      text-align: center;
+      padding: 3px 6px !important;
+      height: 44px !important;
+      border-left: 1px solid var(--border);
+    }
+
+    th.node .nn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      font-size: 10.5px;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    th.node .nn .star {
+      color: var(--yellow);
+      font-size: 9px;
+    }
+
+    th.node .st {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 3px;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--text-3);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    th.node .st b {
+      font-weight: 600;
+    }
+
+    th.node .st .hi {
+      color: var(--yellow);
+    }
+
+    th.node .st .cr {
+      color: var(--red);
+    }
+
+    td.node {
+      text-align: center;
+      padding: 0 4px !important;
+      border-left: 1px solid var(--border);
+    }
+
+    td.num,
+    th.num {
+      text-align: right;
+    }
+
+    td.index {
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    td.index .hdot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    td.index .nm {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hdot.green {
+      background: var(--green);
+    }
+
+    .hdot.yellow {
+      background: var(--yellow);
+    }
+
+    .hdot.red {
+      background: var(--red);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 5px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--mono);
+      line-height: 1.5;
+    }
+
+    .pill.green {
+      color: var(--green);
+      background: var(--green-bg);
+      border: 1px solid var(--green-bd);
+    }
+
+    .pill.yellow {
+      color: var(--yellow);
+      background: var(--yellow-bg);
+      border: 1px solid var(--yellow-bd);
+    }
+
+    .pill.red {
+      color: var(--red);
+      background: var(--red-bg);
+      border: 1px solid var(--red-bd);
+    }
+
+    .dim {
+      color: var(--text-3);
+    }
+
+    .st-close {
+      color: var(--text-4);
+    }
+
+    .shardcell {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2px;
+      max-width: 46px;
+      margin: 0 auto;
+    }
+
+    .shard {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      cursor: default;
+      transition: transform .1s;
+    }
+
+    .shard:hover {
+      transform: scale(1.5);
+    }
+
+    .shard.started {
+      background: var(--green);
+    }
+
+    .shard.relo {
+      background: var(--yellow);
+    }
+
+    .shard.init {
+      background: var(--blue);
+    }
+
+    .shard.rep {
+      background: transparent !important;
+    }
+
+    .shard.rep.started {
+      border: 1.5px solid var(--green);
+    }
+
+    .shard.rep.relo {
+      border: 1.5px solid var(--yellow);
+    }
+
+    .shard.rep.init {
+      border: 1.5px solid var(--blue);
+    }
+
+    .shard.un {
+      background: transparent;
+      border: 1.5px dashed var(--text-3);
+    }
+
+    tr.group td {
+      background: var(--bg-3) !important;
+      border-bottom: 1px solid var(--border-2);
+      font-weight: 600;
+      color: var(--text);
+      height: 27px;
+      cursor: pointer;
+    }
+
+    tr.group td.frz {
+      background: var(--bg-3) !important;
+    }
+
+    tr.group .gname {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    tr.child td.frz .nm {
+      padding-left: 16px;
+    }
+
+    .caret {
+      display: inline-flex;
+      transition: transform .18s;
+      color: var(--text-3);
+    }
+
+    .caret.open {
+      transform: rotate(90deg);
+    }
+
+    /* status line */
+    .statusline {
+      height: 25px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 12px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-2);
+      font-size: 10.5px;
+      color: var(--text-3);
+      font-family: var(--mono);
+    }
+
+    .statusline .sp {
+      margin-left: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <!-- ============ top bar ============ -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="3" fill="#fff" opacity=".9" />
+            <circle cx="7" cy="7" r="6" stroke="#fff" stroke-width="1" opacity=".45" />
+          </svg>
+        </div>
+        <span>ESPulse</span>
+      </div>
+      <div class="vsep"></div>
+
+      <div class="csw">
+        <span class="cdot"></span>
+        <span class="nm">prod-es</span>
+        <span class="mod mono">8.12.1</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          style="color:var(--text-3)">
+          <polyline points="7 15 12 20 17 15" />
+          <polyline points="7 9 12 4 17 9" />
+        </svg>
+      </div>
+      <div class="vsep"></div>
+
+      <nav class="tabs">
+        <div class="tab on">Workbench</div>
+        <div class="tab">Dev Console</div>
+      </nav>
+
+      <div class="grow"></div>
+
+      <!-- 原型对照开关：健康态 / 恢复态 -->
+      <div class="stateSw" title="原型对照：切换数据状态">
+        <div class="o" id="swHealthy" onclick="setDataState('healthy')"><span class="d" style="color:var(--green)"></span>健康态</div>
+        <div class="o on" id="swRecover" onclick="setDataState('recovering')"><span class="d" style="color:var(--yellow)"></span>恢复态</div>
+      </div>
+
+      <div class="fresh"><span class="live" id="liveDot"></span><span id="freshTxt">更新于 2s</span></div>
+      <div class="vsep"></div>
+      <button class="iconbtn" title="刷新">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10" />
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+        </svg>
+      </button>
+      <button class="iconbtn" title="主题" onclick="document.documentElement.classList.toggle('light')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5" />
+          <line x1="12" y1="1" x2="12" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="23" />
+          <line x1="4.2" y1="4.2" x2="5.6" y2="5.6" />
+          <line x1="18.4" y1="18.4" x2="19.8" y2="19.8" />
+          <line x1="1" y1="12" x2="3" y2="12" />
+          <line x1="21" y1="12" x2="23" y2="12" />
+          <line x1="4.2" y1="19.8" x2="5.6" y2="18.4" />
+          <line x1="18.4" y1="5.6" x2="19.8" y2="4.2" />
+        </svg>
+      </button>
+    </header>
+
+    <!-- ============ vitals ============ -->
+    <div class="vitals">
+      <div class="vgrp">
+        <span class="hchip" id="healthChip"><span class="pip"></span>YELLOW</span>
+        <div class="bar"><i id="asBar" style="width:94%"></i></div>
+        <span class="mono" id="asPct" style="font-size:12px;color:var(--text-2)">94.1%</span>
+      </div>
+      <div class="vgrp">
+        <div class="vstat"><span class="k">Nodes</span><span class="v">10</span></div>
+        <div class="vstat"><span class="k">Indices</span><span class="v">1,240</span></div>
+        <div class="vstat"><span class="k">Shards</span><span class="v">3,720<small>1,240/2,480</small></span></div>
+        <div class="vstat"><span class="k">Docs</span><span class="v">1.24B</span></div>
+        <div class="vstat"><span class="k">Store</span><span class="v">4.31 TB</span></div>
+      </div>
+      <div class="vgrp">
+        <div class="vstat"><span class="k">未分配</span><span class="v bad" id="vUn">6</span></div>
+        <div class="vstat"><span class="k">恢复中</span><span class="v warn" id="vRec">18</span></div>
+        <div class="vstat"><span class="k">初始化</span><span class="v ok" id="vInit">3</span></div>
+      </div>
+      <div class="vgrp">
+        <div class="vstat"><span class="k">恢复吞吐</span><span class="v" id="vTput">142 MB/s</span></div>
+        <div class="vstat"><span class="k">剩余</span><span class="v" id="vEta">~2m 14s</span></div>
+      </div>
+    </div>
+
+    <!-- ============ event band ============ -->
+    <div class="band" id="band">
+      <!-- idle -->
+      <div class="idle" id="bandIdle">
+        <span class="ok">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          一切正常
+        </span>
+        <span class="sep">·</span>
+        <span>无恢复任务</span>
+        <span class="sep">·</span>
+        <span>无未分配分片</span>
+        <span class="sep">·</span>
+        <span>无非 Green 索引</span>
+        <span class="ts">采集于 2s 前</span>
+      </div>
+
+      <!-- active -->
+      <div class="active" id="bandActive">
+        <div class="eb-head">
+          <span class="ld"></span>
+          <span class="ttl">活动中</span>
+          <span class="cnt" id="ebCnt"></span>
+          <span class="sp" id="ebSum"></span>
+        </div>
+        <div class="eb-cols">
+          <!-- recovery -->
+          <section class="eb-sec">
+            <h4>
+              正在恢复 / 搬迁
+              <span class="n" id="recCount"></span>
+              <span class="hint">按「进度低 · 卡得久」优先排序</span>
+            </h4>
+            <table class="rt" id="recTable">
+              <colgroup>
+                <col style="width:170px">
+                <col style="width:56px">
+                <col style="width:82px">
+                <col style="width:66px">
+                <col style="width:150px">
+                <col style="width:96px">
+                <col style="width:104px">
+                <col style="width:96px">
+                <col style="width:60px">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>索引</th>
+                  <th>分片</th>
+                  <th>类型</th>
+                  <th>阶段</th>
+                  <th>源 → 目标</th>
+                  <th>文件</th>
+                  <th>字节</th>
+                  <th>translog</th>
+                  <th>耗时</th>
+                </tr>
+              </thead>
+              <tbody id="recBody"></tbody>
+            </table>
+            <div class="done-strip" id="doneStrip"></div>
+          </section>
+
+          <!-- problems -->
+          <section class="eb-sec">
+            <h4>
+              问题
+              <span class="n" id="probCount"></span>
+              <span class="hint">未分配 / 非 Green</span>
+            </h4>
+            <div class="psub">未分配分片 <span class="n" id="unCount"></span></div>
+            <div class="plist" id="unList"></div>
+            <div class="psub">非 Green 索引 <span class="n" id="badCount"></span></div>
+            <div class="plist" id="badList"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ toolbar ============ -->
+    <div class="toolbar">
+      <div class="tsearch">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" style="color:var(--text-3)">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input id="search" type="text" placeholder="过滤索引名 / 别名…" oninput="onSearch()" />
+      </div>
+      <button class="tbtn on" id="hideSysBtn" onclick="toggleHideSys()">隐藏 . 系统索引</button>
+      <button class="tbtn" id="groupBtn" onclick="toggleGroup()">按前缀聚合</button>
+      <button class="tbtn" id="probBtn" onclick="toggleOnlyProblems()">只看有问题的</button>
+      <div class="grow"></div>
+      <div class="legend">
+        <span><span class="sq started"></span>主</span>
+        <span><span class="sq rep"></span>副本</span>
+        <span><span class="sq relo"></span>迁移</span>
+        <span><span class="sq init"></span>初始化</span>
+        <span><span class="sq un"></span>未分配</span>
+      </div>
+    </div>
+
+    <!-- ============ grid ============ -->
+    <div class="gridwrap">
+      <table class="grid" id="grid"></table>
+    </div>
+
+    <div class="statusline">
+      <span id="countLine"></span>
+      <span>采集周期 5s · 速率窗口 60s</span>
+      <span class="sp" id="sumLine"></span>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       Mock data — 两套状态：healthy / recovering
+       ============================================================ */
+    let seed = 20261010;
+    function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+
+    const NODES = [
+      { name: 'es-master-01', role: 'm', master: true, heap: 17, cpu: 6, disk: 11 },
+      { name: 'es-master-02', role: 'm', master: false, heap: 21, cpu: 4, disk: 12 },
+      { name: 'es-data-01', role: 'd', master: false, heap: 63, cpu: 38, disk: 54 },
+      { name: 'es-data-02', role: 'd', master: false, heap: 58, cpu: 31, disk: 49 },
+      { name: 'es-data-03', role: 'd', master: false, heap: 71, cpu: 44, disk: 62 },
+      { name: 'es-data-04', role: 'd', master: false, heap: 55, cpu: 22, disk: 41 },
+      { name: 'es-data-05', role: 'd', master: false, heap: 66, cpu: 51, disk: 58 },
+      { name: 'es-data-06', role: 'd', master: false, heap: 74, cpu: 63, disk: 77 },
+      { name: 'es-data-07', role: 'd', master: false, heap: 88, cpu: 79, disk: 84 },
+      { name: 'es-data-08', role: 'd', master: false, heap: 49, cpu: 19, disk: 38 },
+    ];
+    const DNODES = NODES.filter(n => n.role === 'd').map(n => n.name);
+
+    const FAMILIES = [
+      { prefix: 'logs-app-', style: 'date', count: 16, pri: 6, rep: 1, base: '2026.09', doc: 42, store: 3.1, heat: 3 },
+      { prefix: 'logs-nginx-', style: 'date', count: 12, pri: 4, rep: 1, base: '2026.09', doc: 30, store: 2.2, heat: 2 },
+      { prefix: 'metrics-prod-', style: 'seq', count: 1, pri: 4, rep: 1, base: '000031', doc: 260, store: 8.4, heat: 4 },
+      { prefix: 'traces-apm-', style: 'date', count: 14, pri: 5, rep: 1, base: '2026.09', doc: 18, store: 1.6, heat: 5 },
+      { prefix: 'orders-', style: 'month', count: 8, pri: 3, rep: 1, base: '2026.02', doc: 12, store: 1.1, heat: 2 },
+      { prefix: 'events-ingest-', style: 'seq', count: 1, pri: 8, rep: 1, base: '000004', doc: 190, store: 6.2, heat: 5 },
+      { prefix: 'audit-security-', style: 'month', count: 7, pri: 2, rep: 1, base: '2026.04', doc: 6, store: 0.5, heat: 1 },
+      { prefix: '.internal-', style: 'date', count: 5, pri: 1, rep: 1, base: '2026.09', doc: 1, store: 0.05, heat: 0 },
+    ];
+
+    function famName(f, i) {
+      if (f.style === 'date') {
+        const [y, m] = f.base.split('.');
+        const d = String(((i * 2) % 28) + 1).padStart(2, '0');
+        return `${f.prefix}${y}.${String(Number(m)).padStart(2, '0')}.${d}`;
+      }
+      if (f.style === 'month') {
+        const [y, m] = f.base.split('.');
+        return `${f.prefix}${y}.${String(Number(m) + i).padStart(2, '0')}`;
+      }
+      return f.prefix + String(Number(f.base) + i).padStart(6, '0');
+    }
+
+    const BASE = [];
+    FAMILIES.forEach((f) => {
+      for (let i = 0; i < f.count; i++) {
+        const name = famName(f, i);
+        BASE.push({
+          name,
+          family: f.prefix,
+          isSystem: name.startsWith('.'),
+          pri: f.pri,
+          rep: f.rep,
+          docs: Math.round(f.doc * (0.4 + rnd()) * 1e6),
+          store: +(f.store * (0.4 + rnd())).toFixed(1),
+          wr: Math.round(f.heat * (200 + rnd() * 2600)),
+          qr: Math.round(f.heat * (80 + rnd() * 900)),
+          status: rnd() < 0.08 ? 'close' : 'open',
+          // 恢复态下被打上问题标记的索引
+          _unhealthy: rnd() < 0.22 ? (rnd() < 0.3 ? 'red' : 'yellow') : 'green',
+        });
+      }
+    });
+
+    let DATA = { state: 'recovering', search: '', hideSys: true, group: false, onlyProblems: false, collapsed: new Set() };
+
+    function currentIndices() {
+      return BASE.map(b => {
+        const health = DATA.state === 'recovering' ? b._unhealthy : 'green';
+        return { ...b, health, docs: health === 'red' ? 0 : b.docs, store: health === 'red' ? 0 : b.store };
+      });
+    }
+
+    function assignShards(idx) {
+      const map = {};
+      const un = [];
+      const n = DNODES.length;
+      for (let s = 0; s < idx.pri; s++) {
+        const base = (s * 3 + idx.name.length) % n;
+        const pNode = DNODES[base];
+        if (idx.health === 'red' && s === 0) {
+          un.push({ shard: s, pri: true, reason: 'NO_VALID_SHARD_COPY' });
+        } else {
+          (map[pNode] = map[pNode] || []).push({ shard: s, pri: true, state: 'started' });
+        }
+        for (let r = 1; r <= idx.rep; r++) {
+          const rNode = DNODES[(base + r * 4 + 1) % n];
+          let st = 'started';
+          const roll = rnd();
+          if (idx.health === 'red') { st = roll < 0.3 ? 'unassigned' : 'started'; }
+          else if (idx.health === 'yellow') { st = roll < 0.18 ? 'unassigned' : roll < 0.32 ? 'relocating' : 'started'; }
+          if (st === 'unassigned') {
+            if (un.length < 4) un.push({ shard: s, pri: false, reason: 'NODE_LEFT' });
+          } else {
+            (map[rNode] = map[rNode] || []).push({ shard: s, pri: false, state: st });
+          }
+        }
+      }
+      idx._shards = map;
+      idx._un = un;
+    }
+
+    // ---- recovery tasks (_recovery) ----
+    const REC_TYPES = ['PEER', 'PEER', 'PEER', 'SNAPSHOT', 'EXISTING_STORE', 'REPLICA'];
+    const REC_STAGES = ['INIT', 'INDEX', 'INDEX', 'FINALIZE'];
+    let RECOVERY = [];
+    let COMPLETED = [];
+
+    function buildRecovery(idxs) {
+      if (DATA.state !== 'recovering') { RECOVERY = []; COMPLETED = []; return; }
+      const moving = idxs.filter(i => i.health !== 'green');
+      const pool = moving.length ? moving : idxs;
+      RECOVERY = [];
+      const count = Math.min(22, Math.max(12, Math.round(idxs.length * 0.4)));
+      for (let i = 0; i < count; i++) {
+        const ix = pool[i % pool.length];
+        const type = REC_TYPES[Math.floor(rnd() * REC_TYPES.length)];
+        const stage = REC_STAGES[Math.floor(rnd() * REC_STAGES.length)];
+        const totalBytes = Math.round((0.2 + rnd() * 6) * 1e9);
+        const bytesPct = 0.05 + rnd() * 0.9;
+        const filesTotal = 20 + Math.floor(rnd() * 900);
+        const elapsed = Math.round(3 + rnd() * 240);
+        const stuck = bytesPct < 0.2 && elapsed > 120;
+        const src = NODES[Math.floor(rnd() * NODES.length)].name;
+        let tgt = DNODES[Math.floor(rnd() * DNODES.length)];
+        if (tgt === src) tgt = DNODES[(DNODES.indexOf(tgt) + 1) % DNODES.length];
+        RECOVERY.push({
+          index: ix.name, shard: Math.floor(rnd() * ix.pri), pri: rnd() < 0.6, type, stage,
+          source: src, target: tgt,
+          files: { done: Math.round(filesTotal * bytesPct), total: filesTotal },
+          bytes: { done: Math.round(totalBytes * bytesPct), total: totalBytes },
+          translog: { done: Math.round(rnd() * 4200), total: 4200 },
+          elapsed, stuck,
+        });
+      }
+      RECOVERY.sort((a, b) => (a.stuck === b.stuck ? 0 : a.stuck ? -1 : 1) || (a.bytes.done / a.bytes.total) - (b.bytes.done / b.bytes.total));
+      COMPLETED = [
+        { index: 'logs-app-2026.09.14', shard: 3, pri: false, type: 'PEER', secs: 12 },
+        { index: 'traces-apm-2026.09.11', shard: 1, pri: true, type: 'SNAPSHOT', secs: 41 },
+      ];
+    }
+
+    /* ============================================================
+       format helpers
+       ============================================================ */
+    const fmtInt = n => Number(n).toLocaleString('en-US');
+    const fmtC = n => n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n);
+    const fmtGB = g => g >= 1024 ? (g / 1024).toFixed(2) + ' TB' : g < 1 ? Math.round(g * 1024) + ' MB' : g.toFixed(1) + ' GB';
+    const fmtBytes = b => b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(0) + ' MB' : (b / 1e3).toFixed(0) + ' KB';
+    const fmtRate = v => v === 0 ? '0' : v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'k' : String(v);
+    const fmtTime = s => s >= 60 ? `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s` : s + 's';
+    const pctOf = (a, b) => b ? Math.round((a / b) * 100) : 0;
+
+    /* ============================================================
+       render: event band（空 / 满 两态）
+       ============================================================ */
+    function renderBand(idxs) {
+      const band = document.getElementById('band');
+      if (DATA.state !== 'recovering') {
+        band.classList.remove('on');
+        return;
+      }
+      band.classList.add('on');
+
+      // 汇总
+      const un = [];
+      const bad = [];
+      idxs.forEach(i => { (i._un || []).forEach(s => un.push({ i, s })); if (i.health !== 'green') bad.push(i); });
+      const totalBytes = RECOVERY.reduce((a, r) => a + r.bytes.total, 0);
+      const doneBytes = RECOVERY.reduce((a, r) => a + r.bytes.done, 0);
+      const avg = totalBytes ? Math.round(doneBytes / totalBytes * 100) : 0;
+      document.getElementById('ebCnt').innerHTML =
+        `恢复中 <b>${RECOVERY.length}</b> · 未分配 <b>${un.length}</b> · 非 Green <b>${bad.length}</b>`;
+      document.getElementById('ebSum').textContent =
+        `共 ${fmtBytes(totalBytes)} · 平均 ${avg}% · 吞吐 142 MB/s · 预计 2m14s`;
+      document.getElementById('recCount').textContent = RECOVERY.length;
+      document.getElementById('probCount').textContent = un.length + bad.length;
+
+      // recovery rows
+      const body = document.getElementById('recBody');
+      body.innerHTML = RECOVERY.slice(0, 12).map((r) => {
+        const bp = pctOf(r.bytes.done, r.bytes.total);
+        const fp = pctOf(r.files.done, r.files.total);
+        const tp = pctOf(r.translog.done, r.translog.total);
+        const typeCls = r.type.toLowerCase();
+        return `<tr class="${r.stuck ? 'stuck' : ''}">
+          <td class="ix" onclick="filterTo('${r.index}')" title="${r.index}">${r.index}</td>
+          <td>${r.pri ? 'P' : 'R'}${r.shard}</td>
+          <td><span class="type ${typeCls}">${r.type}</span></td>
+          <td class="stage ${r.stage.toLowerCase()}">${r.stage}</td>
+          <td><span class="dim">${r.source}</span><span class="arrow">→</span>${r.target}</td>
+          <td><div class="prog"><span class="track"><i style="width:${fp}%"></i></span><span class="pct">${fp}%</span></div></td>
+          <td><div class="prog ${r.stuck ? 'stuck' : ''}"><span class="track"><i style="width:${bp}%"></i></span><span class="pct">${bp}%</span><span class="ratio">${fmtBytes(r.bytes.done)}</span></div></td>
+          <td><div class="prog"><span class="track"><i style="width:${tp}%"></i></span><span class="pct">${tp}%</span></div></td>
+          <td class="${r.stuck ? '' : 'dim'}" style="${r.stuck ? 'color:var(--red)' : ''}">${fmtTime(r.elapsed)}</td>
+        </tr>`;
+      }).join('');
+
+      // recently completed
+      document.getElementById('doneStrip').innerHTML =
+        `<span class="lab">
+           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+           刚刚完成 (${COMPLETED.length})</span>` +
+        COMPLETED.map(c => `<span class="it"><b>${c.index}</b> ${c.pri ? 'P' : 'R'}${c.shard} · ${c.type} · ${c.secs}s 前</span>`).join('');
+
+      // problems
+      document.getElementById('unCount').textContent = un.length;
+      document.getElementById('unList').innerHTML = un.slice(0, 5).map(x =>
+        `<div class="prow" onclick="filterTo('${x.i.name}')"><span class="ix">${x.i.name}</span><span>#${x.s.shard}</span><span class="rs">${x.s.reason}</span></div>`
+      ).join('') || '<div class="prow dim">无</div>';
+
+      document.getElementById('badCount').textContent = bad.length;
+      document.getElementById('badList').innerHTML = bad.slice(0, 5).map(i =>
+        `<div class="prow" onclick="filterTo('${i.name}')"><span class="hdot ${i.health}" style="width:6px;height:6px;border-radius:50%;display:inline-block"></span><span class="ix">${i.name}</span><span class="rs">${i.health}</span></div>`
+      ).join('') || '<div class="prow dim">无</div>';
+    }
+
+    /* ============================================================
+       render: grid
+       ============================================================ */
+    const META = [
+      { key: 'name', label: 'Index', w: 214, cls: 'frz' },
+      { key: 'health', label: 'Health', w: 64 },
+      { key: 'status', label: 'St', w: 46 },
+      { key: 'prirep', label: 'Pri/Rep', w: 54, num: true },
+      { key: 'docs', label: 'Docs', w: 72, num: true },
+      { key: 'store', label: 'Store', w: 72, num: true },
+      { key: 'wr', label: 'Wr/s', w: 60, num: true },
+      { key: 'qr', label: 'Qr/s', w: 60, num: true },
+    ];
+
+    function filteredRows(idxs) {
+      const q = DATA.search.trim().toLowerCase();
+      return idxs.filter(i => {
+        if (DATA.hideSys && i.isSystem) return false;
+        if (DATA.onlyProblems && i.health === 'green') return false;
+        if (q && !i.name.toLowerCase().includes(q)) return false;
+        return true;
+      }).sort((a, b) => {
+        const pa = a.health !== 'green' ? 0 : 1, pb = b.health !== 'green' ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return b.store - a.store;
+      });
+    }
+
+    const healthPill = h => `<span class="pill ${h}"><span style="width:5px;height:5px;border-radius:50%;background:currentColor"></span>${h}</span>`;
+
+    function shardCell(list) {
+      if (!list || !list.length) return '<span class="dim" style="font-size:9px">·</span>';
+      return '<div class="shardcell">' + list.slice(0, 8).map(s => {
+        const st = s.state === 'relocating' ? 'relo' : s.state;
+        return `<span class="shard ${st}${s.pri ? '' : ' rep'}" title="${s.pri ? 'P' : 'R'}${s.shard} · ${s.state}"></span>`;
+      }).join('') + '</div>';
+    }
+
+    function unCell(list) {
+      if (!list || !list.length) return '<span class="dim" style="font-size:9px">·</span>';
+      return '<div class="shardcell">' + list.map(s => `<span class="shard un" title="${s.pri ? 'P' : 'R'}${s.shard} · ${s.reason}"></span>`).join('') + '</div>';
+    }
+
+    function rowHTML(i, child) {
+      const map = i._shards || {};
+      let h = `<tr class="${child ? 'child' : ''}">`;
+      h += `<td class="frz index" title="${i.name}"><span class="hdot ${i.health}"></span><span class="nm">${i.name}</span></td>`;
+      h += `<td>${healthPill(i.health)}</td>`;
+      h += `<td class="st-${i.status} mono">${i.status}</td>`;
+      h += `<td class="num mono">${i.pri}<span class="dim">/${i.rep}</span></td>`;
+      h += `<td class="num mono">${fmtC(i.docs)}</td>`;
+      h += `<td class="num mono">${fmtGB(i.store)}</td>`;
+      h += `<td class="num mono">${fmtRate(i.wr)}</td>`;
+      h += `<td class="num mono">${fmtRate(i.qr)}</td>`;
+      NODES.forEach(n => h += `<td class="node">${shardCell(map[n.name])}</td>`);
+      h += `<td class="node">${unCell(i._un)}</td>`;
+      return h + '</tr>';
+    }
+
+    function groupRow(fam, items) {
+      const open = !DATA.collapsed.has(fam);
+      const worst = items.some(i => i.health === 'red') ? 'red' : items.some(i => i.health === 'yellow') ? 'yellow' : 'green';
+      const docs = items.reduce((a, i) => a + i.docs, 0), store = items.reduce((a, i) => a + i.store, 0);
+      return `<tr class="group" onclick="toggleGroupRow('${fam}')">
+        <td class="frz"><span class="gname"><span class="caret ${open ? 'open' : ''}"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span><span class="hdot ${worst}"></span>${fam}*</span></td>
+        <td>${healthPill(worst)}</td>
+        <td class="mono dim">${items.length}×</td>
+        <td class="num mono">${items.reduce((a, i) => a + i.pri, 0)}<span class="dim">/${items.reduce((a, i) => a + i.rep, 0)}</span></td>
+        <td class="num mono">${fmtC(docs)}</td>
+        <td class="num mono">${fmtGB(store)}</td>
+        <td class="num dim">Σ</td><td class="num dim">Σ</td>
+        ${NODES.map(() => '<td class="node dim">·</td>').join('')}<td class="node dim">·</td>
+      </tr>`;
+    }
+
+    function renderGrid(idxs) {
+      const rows = filteredRows(idxs);
+      let head = '<colgroup>';
+      META.forEach(m => head += `<col style="width:${m.w}px">`);
+      NODES.forEach(() => head += '<col style="width:60px">');
+      head += '<col style="width:62px"></colgroup>';
+
+      head += '<thead><tr class="h1">';
+      head += `<th class="frz" colspan="${META.length}" style="text-align:left">索引 / 汇总 (${rows.length})</th>`;
+      head += `<th class="grp" colspan="${NODES.length}">节点 · 分片分布（列头 = 节点 heap/cpu/disk）</th>`;
+      head += `<th class="grp">未分配</th></tr>`;
+
+      head += '<tr>';
+      META.forEach(m => head += `<th class="${m.cls || ''} ${m.num ? 'num' : ''}">${m.label}</th>`);
+      NODES.forEach(n => {
+        const hc = n.heap >= 85 ? 'cr' : n.heap >= 70 ? 'hi' : '';
+        const cc = n.cpu >= 80 ? 'cr' : n.cpu >= 65 ? 'hi' : '';
+        const dc = n.disk >= 80 ? 'cr' : n.disk >= 70 ? 'hi' : '';
+        head += `<th class="node"><div class="nn">${n.master ? '<span class="star">★</span>' : ''}${n.name}</div>
+          <div class="st"><span class="${hc}">H<b>${n.heap}</b></span><span class="${cc}">C<b>${n.cpu}</b></span><span class="${dc}">D<b>${n.disk}</b></span></div></th>`;
+      });
+      head += '<th class="node"><div class="nn">未分配</div><div class="st">pseudo</div></th></tr></thead>';
+
+      let body = '<tbody>';
+      if (DATA.group) {
+        const groups = new Map();
+        rows.forEach(i => { if (!groups.has(i.family)) groups.set(i.family, []); groups.get(i.family).push(i); });
+        groups.forEach((items, fam) => {
+          body += groupRow(fam, items);
+          if (!DATA.collapsed.has(fam)) items.forEach(i => body += rowHTML(i, true));
+        });
+      } else {
+        rows.slice(0, 300).forEach(i => body += rowHTML(i, false));
+      }
+      body += '</tbody>';
+      document.getElementById('grid').innerHTML = head + body;
+
+      const shown = Math.min(300, rows.length);
+      document.getElementById('countLine').textContent =
+        `共 ${fmtInt(1240)} 个索引 · 显示 ${fmtInt(shown)}${rows.length > shown ? ' / ' + fmtInt(rows.length) : ''}`;
+      document.getElementById('sumLine').textContent =
+        `匹配 ${fmtInt(rows.length)} 索引 · 存储 ${fmtGB(rows.reduce((a, i) => a + i.store, 0))}`;
+    }
+
+    /* ============================================================
+       render all
+       ============================================================ */
+    function render() {
+      const idxs = currentIndices();
+      idxs.forEach(assignShards);
+      buildRecovery(idxs);
+      renderBand(idxs);
+      renderGrid(idxs);
+
+      // vitals
+      const rec = DATA.state === 'recovering';
+      document.getElementById('healthChip').innerHTML = `<span class="pip"></span>${rec ? 'YELLOW' : 'GREEN'}`;
+      document.getElementById('healthChip').style.color = rec ? 'var(--yellow)' : 'var(--green)';
+      document.getElementById('healthChip').style.background = rec ? 'var(--yellow-bg)' : 'var(--green-bg)';
+      document.getElementById('healthChip').style.borderColor = rec ? 'var(--yellow-bd)' : 'var(--green-bd)';
+      document.getElementById('asBar').style.width = rec ? '94%' : '100%';
+      document.getElementById('asBar').style.background = rec ? 'var(--yellow)' : 'var(--green)';
+      document.getElementById('asPct').textContent = rec ? '94.1%' : '100%';
+      document.getElementById('vUn').textContent = rec ? '6' : '0';
+      document.getElementById('vUn').className = 'v ' + (rec ? 'bad' : 'ok');
+      document.getElementById('vRec').textContent = rec ? RECOVERY.length : '0';
+      document.getElementById('vRec').className = 'v ' + (rec ? 'warn' : 'ok');
+      document.getElementById('vInit').textContent = rec ? '3' : '0';
+      document.getElementById('vInit').className = 'v ' + (rec ? '' : 'ok') + (rec ? '' : '');
+      document.getElementById('vTput').textContent = rec ? '142 MB/s' : '—';
+      document.getElementById('vEta').textContent = rec ? '~2m 14s' : '—';
+      document.getElementById('liveDot').classList.toggle('act', rec);
+      document.getElementById('freshTxt').textContent = rec ? '恢复中 · 更新于 2s' : '更新于 2s';
+    }
+
+    /* ============================================================
+       interactions
+       ============================================================ */
+    function setDataState(s) {
+      DATA.state = s;
+      document.getElementById('swHealthy').classList.toggle('on', s === 'healthy');
+      document.getElementById('swRecover').classList.toggle('on', s === 'recovering');
+      document.getElementById('probBtn').classList.toggle('on', false);
+      DATA.onlyProblems = false;
+      render();
+    }
+    function onSearch() { DATA.search = document.getElementById('search').value; render(); }
+    function toggleHideSys() { DATA.hideSys = !DATA.hideSys; document.getElementById('hideSysBtn').classList.toggle('on', DATA.hideSys); render(); }
+    function toggleGroup() { DATA.group = !DATA.group; document.getElementById('groupBtn').classList.toggle('on', DATA.group); render(); }
+    function toggleGroupRow(f) { DATA.collapsed.has(f) ? DATA.collapsed.delete(f) : DATA.collapsed.add(f); render(); }
+    function toggleOnlyProblems() {
+      DATA.onlyProblems = !DATA.onlyProblems;
+      document.getElementById('probBtn').classList.toggle('on', DATA.onlyProblems);
+      if (DATA.onlyProblems) { DATA.hideSys = false; document.getElementById('hideSysBtn').classList.remove('on'); }
+      render();
+    }
+    function filterTo(name) {
+      DATA.search = name; DATA.hideSys = false;
+      document.getElementById('search').value = name;
+      document.getElementById('hideSysBtn').classList.remove('on');
+      render();
+    }
+
+    render();
+  </script>
+</body>
+
+</html>
