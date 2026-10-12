@@ -32,6 +32,13 @@ ESPulse = Go + Vue 3 的轻量 Elasticsearch 集群管理工具，目标替代�
 - 后端：Go + Gin，HTTP 客户端走 `internal/es/client.go` 的 `SharedClient` / `ProbeClient` / `CatalogClient`；ES 接口只用跨版本稳定的 `_cluster/health`、`_cat/*?format=json`。
 - 前端文案先落 `i18n/locales/{zh-CN,en-US}.ts`，不要硬编码在模板里。
 
+## 提交约定
+
+- **一次提交只做一件事**：如果改动横跨多个功能 / 模块（如「后端加了接口 + 前端改了页面 + 顺手修了个 bug」），**拆成多次提交**，每次只包含同一件事的改动；不要把一个功能的全套改动打散到多次提交，也不要一次提交塞进多件事。
+- **提交信息**：首行 `type(scope): 主题`（中文），正文只写**必要的补充**，**一般不超过 3 行**。改动本身能从 diff 看出来的，不要复述 —— 正文留给「为什么这么改」「有什么副作用 / 影响范围」。
+- 需要在同一批改动里说明的背景（如文档转正、约定变更），合并进相关那一次提交的正文，不要单独开一次「顺便更新文档」的提交。
+- 提交信息末尾带 `Co-authored-by` trailer。
+
 ## 文档体系（改动要同步）
 
 - [PRD.md](../PRD.md) —— 产品原则与阶段规划；[ARCHITECTURE.md](../ARCHITECTURE.md) —— 结构与接口；[TASKS.md](../TASKS.md) —— 任务看板；[CHANGELOG.md](../CHANGELOG.md) —— 每次改动追加到 `## [Unreleased]` 下当天日期的小节。
