@@ -9,7 +9,7 @@ export const useClusterStore = defineStore('cluster', () => {
   // 是否已经成功拉到过列表：用来区分「还没加载完」和「这个集群确实不存在」
   const loaded = ref(false)
 
-  // 活动集群由 URL 决定（/cluster/:id/...），store 只提供按 id 查询
+  // 活动集群由 URL 决定（/workbench/:id），store 只提供按 id 查询
   function clusterById(id: string | undefined) {
     if (!id) return null
     return clusters.value.find(c => c.id === id) || null

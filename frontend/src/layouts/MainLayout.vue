@@ -16,7 +16,7 @@ const { isDark, toggleTheme } = useTheme()
 
 const { handler, refreshing, updatedAt, triggerRefresh } = useGlobalRefresh()
 
-// 活动集群由 URL 决定（/cluster/:id/...），不再使用隐式的全局选择状态
+// 活动集群由 URL 决定（Hub 本身没有 :id，落在这里时切换器显示「全部集群」）
 const clusterId = computed(() => route.params.id as string | undefined)
 const currentCluster = computed(() => clusterStore.clusterById(clusterId.value))
 
@@ -27,26 +27,8 @@ let ticker: number | undefined
 const freshnessText = computed(() => formatAge(updatedAt.value, now.value))
 const stale = computed(() => isStale(updatedAt.value, now.value, 15000))
 
-// 模块是同一集群下的平级视图，横向 Tab 才是它们的正确表达（见 PRD §2.5）
-const MODULES = [
-  { id: 'overview', label: 'Overview', path: 'overview' },
-  { id: 'indices', label: 'Indices', path: 'indices' },
-  { id: 'shards', label: 'Shards', path: 'shards' },
-  { id: 'console', label: 'Dev Console', path: 'console' },
-]
-
-const modules = computed(() =>
-  clusterId.value
-    ? MODULES.map(item => ({ ...item, to: `/cluster/${clusterId.value}/${item.path}` }))
-    : [],
-)
-
-const isActive = (to: string) => route.path === to
-
-// 打开 v5 工作台（独立页面）：当前有活动集群就带过去，否则先回 Hub
-const openWorkbench = () => {
-  router.push(clusterId.value ? `/workbench/${clusterId.value}` : '/')
-}
+// 模块 Tab 已随旧版模块页一并取消：集群只有一个落地页（`/workbench/:id`），
+// Hub 只负责「管理 + 浏览」（见 PRD §2.5）
 
 onMounted(async () => {
   ticker = window.setInterval(() => { now.value = Date.now() }, 5000)
@@ -59,7 +41,7 @@ onMounted(async () => {
 })
 
 // 集群已被删除、URL 又是旧链接（历史 / 书签）时统一收敛回列表，
-// 避免渲染出一套点进去是空白的模块 Tab
+// 避免渲染出一套点进去是空白的视图
 watch([loaded, clusterId, () => clusterStore.clusters.length], () => {
   if (loaded.value && clusterId.value && !currentCluster.value) router.replace('/')
 })
@@ -79,25 +61,8 @@ onBeforeUnmount(() => {
         </svg>
       </div>
 
-      <!-- 层 1：我在看哪个集群 -->
+      <!-- 层 1：我在看哪个集群（Hub 只是管理页，集群本身落在工作台） -->
       <ClusterSwitcher />
-
-      <template v-if="modules.length">
-        <div class="w-px h-5 bg-border mx-0.5 flex-shrink-0"></div>
-
-        <!-- 层 2：我在看哪个维度 -->
-        <nav class="flex items-center gap-0.5">
-          <button
-            v-for="item in modules"
-            :key="item.id"
-            class="px-2.5 py-1 rounded-6px text-13px font-500 transition-all"
-            :class="isActive(item.to) ? 'bg-accent-glow color-accent' : 'text-text-2 hover:bg-bg-3 hover:text-text'"
-            @click="router.push(item.to)"
-          >
-            {{ item.label }}
-          </button>
-        </nav>
-      </template>
 
       <div class="ml-auto flex items-center gap-2.5 flex-shrink-0">
         <span v-if="clusterId" class="text-11.5px" :class="stale ? 'color-yellow' : 'text-text-3'">
@@ -109,19 +74,11 @@ onBeforeUnmount(() => {
         <button class="btn-icon" :title="isDark ? '切换到浅色' : '切换到深色'" @click="toggleTheme">
           <div class="w-3.75 h-3.75" :class="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"></div>
         </button>
-        <button class="btn-icon" title="打开 v5 工作台" @click="openWorkbench">
-          <div class="w-3.75 h-3.75 i-lucide-layout-grid"></div>
-        </button>
       </div>
     </header>
 
     <div id="content" class="esp-content flex-1 overflow-y-auto overflow-x-hidden bg-bg">
-      <!-- Console 是唯一有状态的模块，必须保活；其余模块的轮询已迁到 onActivated / onDeactivated -->
-      <router-view v-slot="{ Component }">
-        <keep-alive>
-          <component :is="Component" />
-        </keep-alive>
-      </router-view>
+      <router-view />
     </div>
   </div>
 </template>

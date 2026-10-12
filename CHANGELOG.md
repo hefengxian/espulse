@@ -6,8 +6,30 @@
 
 ## [Unreleased]
 
+### 2026-10-12
+
+#### 工作台转正（v5 → 唯一落地页）
+- **Frontend**: **统一工作台（`/workbench/:id`）正式转正为集群的唯一落地页**。此前它只是与旧版并存的独立页面（顶栏留了个入口），同一个集群有两套 UI、两处状态，任何改动都要维护两份。现在 Hub 的集群卡片、集群切换器、历史书签全部指向工作台；旧模块路径 `/cluster/:id/{overview,indices,shards,console}` 一律重定向到 `/workbench/:id`（书签 / 历史不做兼容页，避免出现「点进去看的是旧世界」的错觉）。
+- **Frontend**: 删除旧版模块页 —— `views/ClusterOverview.vue` / `ClusterIndices.vue` / `ClusterShards.vue` / `DevConsole.vue`，以及只服务它们的 `composables/useViewFilters.ts`（「过滤条件按集群记忆」的载体）。旧三页的能力已在工作台里重建：分诊 = 指标条 + 活动区，索引清单 = 网格索引视角，分片分布 = 网格两视角，Dev Console = 顶栏模式切换。
+- **Frontend**: 顶栏去掉模块 Tab —— 模块之间不再有跳转，只有工作台内的视角（索引 / 节点）与模式（工作台 / 控制台）切换，横向导航因此失去承载对象；`MainLayout` 收敛为 Hub 的管理页外壳。
+- **Frontend**: Cluster Hub 整合 —— 集群卡片点击直接进工作台，不再跳旧版 Overview。
+- **Frontend**: 工作台接管「无效集群 id 收敛回 Hub」的守卫 —— 这段逻辑原先在 `MainLayout` 里（它包裹旧模块页），而工作台是独立路由、不在其下；旧页删掉后，删集群留下的历史 / 书签会停在一个永远加载不出来的工作台上，因此把守卫移进工作台（集群列表加载完成后仍找不到该 id → 回 Hub）。
+- **Docs**: PRD 转正 —— §2.5 重写为「Hub / 集群切换器 / 统一工作台」三层骨架（并说明为什么把 Overview + Indices + Shards 合成一页），§2.4 的「不新增栏目」改以「视角 / 模式切换不是栏目」表述，§3 典型一天、§6（Phase 1 表、6.1 指标条与活动区、6.2 统一网格、6.3 kind 归属、6.4 各区域职责边界）、§7 当前实施范围同步；TASKS 重排为「工作台转正 / 已知缺口 / 技术债 / 后续」；ARCHITECTURE 目录结构与路由同步。
+- **Docs**: 显式记录两处**已知缺口**（属「还没做」，不是「不做」）：旧版索引页的**别名视图**尚未迁入工作台（`_cat/aliases` 采集与接口都还在），以及视角 / 过滤条件仍未 URL 化。
+
 ### 2026-10-10
-- **Frontend**: 移除 Dev Console 命令目录（Navigator）里 `Saved` / `History` 两个**占位 Tab** —— 此前点击只切换高亮、内容恒为「This session」的命令大纲（无对应实现），属误导性 UI；连带删除无用的 `activeNavTab` 状态。
+
+#### v5 工作台与地基
+- **Frontend**: 新增 **v5 统一工作台**（`WorkbenchV5.vue` + `components/workbench/*` + `styles/workbench-v5.less`，约 3.5k 行）—— 把总览 / 索引 / 分片三页的信息压进一屏：**指标条**（health + 索引健康环 + active 占比 + 规模计数 + 分片构成堆叠条）、**活动区**（relocating / initializing / 未分配（含原因）/ 非 green 索引，带「健康 / 恢复」折叠开关，点索引名就地过滤）、**统一网格**（索引视角与节点视角一键切换，单元格 = 分片方块，未分配分片单列）、**Dev Console 模式**（顶栏切换，首次切入才挂载 Monaco）。样式作用域限定在 `.esp-wb`，与既有 UnoCSS 页面互不影响，因此当时可与旧页并存。
+- **Frontend**: 顶栏加入工作台入口与集群内切换联想（`ClusterSwitcher` 支持 `/workbench/*` 路径原地换集群）。
+- **Frontend**: 新增 `utils/format.ts`（字节 / 整数 / 速率 / 用量配色）作为展示层格式化工具。
+- **Frontend**: **明暗主题抽取为 `useTheme` 组合式地基** —— 读取 localStorage 偏好、缺省跟随系统、应用到 `html.dark` / `.light`；`App.vue` 的主题色覆盖与背景改为按主题切换，`MainLayout` 不再内置主题逻辑。
+- **Frontend**: **接入 vue-i18n 并新增语言切换地基** —— 新增 i18n 实例与 `zh-CN` / `en-US` 语言包（未声明的 key 回退中文），`useLocale` 封装切换并持久化到 localStorage。
+- **Backend**: **放宽探测与目录客户端超时** —— `ProbeClient` 5s→10s（它同时承载交互式「测试连接」，超时过大时连不上的集群要等很久），`CatalogClient` 30s→90s（万级索引下 `_cat/indices` 耗时可能远超探测超时）。
+- **Docs**: 补充 v5 工作台 UI 原型稿（`frontend/ui_prototype/espulse-workbench{,-v2,-v3,-v4,-v5}.html` 与参考图）。原型页是独立 HTML（Google Fonts 引入、不被构建引用），仅作设计参考保留。
+
+#### Dev Console 与规划
+- **Frontend**: 移除 Dev Console 命令目录（Navigator）里 `Saved` / `History` 两个**占位 Tab** —— 此前点击只切换高亮、内容恒为「This session」的命令大纲（无对应实现），属误导性 UI；连带删除无用的 `activeNavTab`。
 - **Docs**: 同步项目状态 —— TASKS 将「命令目录侧边栏」标记为已完成、删除「多 Tab 并行编辑」，并记录占位 Tab 的移除；PRD Phase 2 移除「多 Tab」。
 - **Docs**: 明确优先级 —— Dev Console「**智能提示**」写入规划，定为后续**重点增强**方向（PRD §6 Phase 2 / TASKS Phase 2）；打包与多平台发布独立为**最后环节（Phase 4 / 「最后环节 — 打包与多平台发布」）**，并声明「所有设计功能完成前不考虑实现」，PRD §8 平台能力同步标注。
 

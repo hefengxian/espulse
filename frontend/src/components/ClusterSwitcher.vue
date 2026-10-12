@@ -68,11 +68,10 @@ const colorOf = (cluster: Cluster) => {
 
 const hostOf = (cluster: Cluster) => (cluster.hosts ?? []).join(', ')
 
-// 切集群保持当前模块：/cluster/A/shards → /cluster/B/shards、/workbench/A → /workbench/B（见 PRD §2.5）
+// 切集群原地换目标：/workbench/A → /workbench/B；从 Hub 进来直接落到工作台（见 PRD §2.5）
 function targetPath(id: string) {
   if (/^\/workbench\/[^/]+/.test(route.path)) return route.path.replace(/^\/workbench\/[^/]+/, `/workbench/${id}`)
-  if (/^\/cluster\/[^/]+\//.test(route.path)) return route.path.replace(/^\/cluster\/[^/]+\//, `/cluster/${id}/`)
-  return `/cluster/${id}/overview`
+  return `/workbench/${id}`
 }
 
 function select(cluster: Cluster) {

@@ -1,18 +1,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import MainLayout from '../layouts/MainLayout.vue'
 import ClusterHub from '../views/ClusterHub.vue'
-import ClusterOverview from '../views/ClusterOverview.vue'
-import ClusterIndices from '../views/ClusterIndices.vue'
-import ClusterShards from '../views/ClusterShards.vue'
-import DevConsole from '../views/DevConsole.vue'
 import WorkbenchV5 from '../views/WorkbenchV5.vue'
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     {
-      // v5 统一工作台：自带顶栏 / 指标条 / 活动区 / 统一网格的全屏独立页面
-      // （与现有的 Overview / Indices / Shards 并存，互不影响）
+      // 统一工作台（全屏独立页面，自带顶栏）：集群的唯一落地页，
+      // 承载指标条 / 活动区 / 统一网格（索引·节点双视角）与 Dev Console 模式
       path: '/workbench/:id',
       name: 'WorkbenchV5',
       component: WorkbenchV5,
@@ -27,24 +23,10 @@ const router = createRouter({
           component: ClusterHub,
         },
         {
-          path: 'cluster/:id/overview',
-          name: 'ClusterOverview',
-          component: ClusterOverview,
-        },
-        {
-          path: 'cluster/:id/indices',
-          name: 'ClusterIndices',
-          component: ClusterIndices,
-        },
-        {
-          path: 'cluster/:id/shards',
-          name: 'ClusterShards',
-          component: ClusterShards,
-        },
-        {
-          path: 'cluster/:id/console',
-          name: 'DevConsole',
-          component: DevConsole,
+          // 旧版模块页（/cluster/:id/{overview,indices,shards,console}）已并入工作台，
+          // 历史记录 / 书签统一收敛到对应集群的工作台
+          path: 'cluster/:id/:pathMatch(.*)*',
+          redirect: to => `/workbench/${String(to.params.id)}`,
         },
         {
           path: ':pathMatch(.*)*',

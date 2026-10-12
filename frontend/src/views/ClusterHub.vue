@@ -218,7 +218,7 @@ const freshnessText = (cluster: Cluster) =>
   )
 
 const enterCluster = (cluster: Cluster) => {
-  router.push(`/cluster/${cluster.id}/overview`)
+  router.push(`/workbench/${cluster.id}`)
 }
 
 // 历史数据的 color 可能是十六进制值（如 #18a058），也可能是指令色名（green）

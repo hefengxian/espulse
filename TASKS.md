@@ -1,110 +1,121 @@
 # TASKS — ESPulse 任务看板
 
-> 状态：进行中 | 当前阶段：**Phase 1 - Cerebro 核心功能替代**
-> 原则：功能先行，UI 后置（见 [PRD.md](./PRD.md) §2.1）；单页看板、信息密集、动态刷新、不增栏目（见 §2.4）
+> 状态：进行中 | 当前阶段：**Phase 1 收口 + Phase 2 起步（统一工作台已转正）**
+> 原则：功能先行，UI 后置（见 [PRD.md](./PRD.md) §2.1）；单页看板、信息密集、动态刷新、不增栏目（见 §2.4）；**集群只有一个落地页 `/workbench/:id`**（见 §2.5）
 
 ---
 
 ## 🎯 当前目标
 
-对齐 Cerebro 核心功能，做到可以日常替代使用。
+把「统一工作台」做成唯一入口并补齐缺口，然后进入 Dev Console 的智能提示。
 
 ---
 
 ## 🛠 正在进行 (In Progress)
 
-### 1. 集群连接管理（含连通性探测）
-- [x] 集群 CRUD 接口（List / Create / Update / Get / Delete）
-- [x] 抽出可复用的 ES 请求层 `internal/es/client.go`
-- [x] `Probe` 探测函数（`GET /` + `GET /_cluster/health`）
-- [x] `POST /api/clusters/probe`：保存前探测，不落库
-- [x] 强制「先探测、后保存」（新增、以及编辑时连接信息变更）
-- [x] 前端：Cluster Hub 卡片墙（空状态 / 新增 / 编辑 / 删除二次确认 / 手动刷新）
-- [x] 移除顶部集群选择器，活动集群改由 URL 决定
-- [x] 多 host 故障转移（请求层依次尝试各 host；只有传输层错误才切换；记住最近可用节点并优先命中；全失败时报「N 个 host 均不可达」）
-- [ ] 列表 / 表格视图切换（已归档到 PRD §8 功能池）
+### 1. 工作台转正（本轮）
 
-### 2. 集群健康采集
-- [x] `internal/es/collector.go`：按需激活的共享采集（5s 间隔 + 失败指数退避）+ 内存快照
-- [x] `GET /api/clusters` 返回时附带 status（reachable / health / version / node_count / …）
-- [x] 添加 / 编辑集群后立即采集一次，避免等待下个周期
-- [x] `POST /api/clusters/refresh`：手动触发重采
-- [x] 采集器改造为「按需激活的共享采集」：按 `(集群, kind)` 共享缓存 + 单飞去重 + `lastAccess` 空闲淘汰（见 PRD §6.3）
-- [x] 扩展 kind：`nodes`（`_cat/nodes`）、`shards`（`_cat/shards`）、`indices`（`_cat/indices`）、`aliases`（`_cat/aliases`）
-- [x] 数据接口：`GET /api/clusters/:id/{nodes,indices,shards,aliases}`，统一返回 `{ data, updated_at }`
-- [x] 快照落库（`snapshots` 表，gzip 压缩）：内存被空闲淘汰 / 进程重启后先渲染落库快照再后台刷新，只有「从未采集过」的集群才同步等一次采集
-- [x] 速率样本环（`index_samples` 表）与索引写入 / 搜索速率（就地差分，窗口 60s，随快照返回 `rate_window_ms`）
-- [ ] 多实例部署下的跨进程采集去重（见 PRD §10）
+> `/workbench/:id` 从「与旧版并存的 v5 原型」转为**集群的唯一落地页**。
 
-### 3. Cerebro 核心页面（数据优先，UI 后置）
-- [x] 集群总览：状态仪表盘 + 问题清单（见 PRD §6.1）
-  - [x] 健康条：status / active_shards_percent / 未分配 / relocating / initializing
-  - [x] 关键计数：节点数 / 索引数 / 主副分片数 / 文档总数 / 存储总量
-  - [x] 节点简表：name / role / master / heap% / cpu% / disk% / 承载分片数
-  - [x] 问题清单：未分配分片 Top 20（含原因）/ relocating 分片 / 非 green 索引（失衡改由节点表的「分片」列呈现，不做模糊阈值判定）
-  - [x] 数据接口 `GET /api/clusters/:id/overview`（聚合 status / nodes / indices / shards，支持 `?refresh=1` 强制重采）
-- [x] 节点信息并入总览的节点表（**取消单独设页**，见 PRD §2.4 / §6.4）
-- [x] 索引列表：`_cat/indices`，后端过滤（索引名 / health / status / 隐藏 `.` 开头索引）+ 排序（索引名 / 存储 / 文档 / health / 写入速率 / 查询速率）+ 分页，前端表格与分页器；侧边栏新增 Indices 入口（`/cluster/:id/indices`）
-- [x] 索引列表展示写入 / 搜索速率（样本不足显示「—」，列头提示差分窗口；见 PRD §11）
-- [x] 分片分布：`_cat/shards` 矩阵，支持「按节点 / 按索引」视角切换、索引名搜索、「隐藏 `.` 开头的索引」（默认开启）与「只看有问题的索引」过滤、索引轴分页（见 PRD §6.2）；侧边栏新增 Shards 入口（`/cluster/:id/shards`）
-- [x] 索引别名：`_cat/aliases`，后端 kind 采集 + `GET /api/clusters/:id/aliases`，前端并入索引页的「别名」视图（**不单独设页**，见 PRD §2.4）
+- [x] 路由转正：`/workbench/:id` 为集群落地页；旧路径 `/cluster/:id/{overview,indices,shards,console}` 重定向到对应集群的工作台（书签 / 历史兼容，不做兼容页）
+- [x] 删除旧版模块页：`ClusterOverview.vue` / `ClusterIndices.vue` / `ClusterShards.vue` / `DevConsole.vue`（功能已并入工作台）
+- [x] 删除只服务旧页面的 `composables/useViewFilters.ts`（旧版「按集群记忆过滤条件」的载体）
+- [x] 顶栏去掉模块 Tab：模块之间不再有跳转，只有工作台内的视角 / 模式切换
+- [x] Cluster Hub 整合：集群卡片点击直接进工作台（不再跳旧版 Overview）
+- [x] 集群切换器统一目标：Hub 或任意工作台内切换，落地都是 `/workbench/:id`
+- [x] 无效集群 id 的守卫移入工作台（原先在包裹旧模块页的 `MainLayout` 里，删集群后的书签不会停在空工作台）
+- [x] 文档转正：PRD §2.4 / §2.5 / §3 / §6 / §7、ARCHITECTURE §1 §2 §4、CHANGELOG
+
+### 2. 工作台的已知缺口
+
+- [ ] **别名视图迁入工作台**：`_cat/aliases` 采集与 `GET /api/clusters/:id/aliases` 接口都在，UI 视图（别名 → 索引映射、写别名、filter / routing）随旧版索引页一起删掉了，需要在工作台里重建入口
+- [ ] **视角 / 过滤条件 URL 化**：当前视角、搜索、「隐藏 `.` 开头」「只看有问题的」「按前缀归并」、排序都在组件内部状态，刷新即丢、深链不可分享（PRD §2.5 规则）
+- [ ] 键盘支持（`⌘K` / 工作台-控制台切换 / `/` 聚焦）：交互习惯稳定后再做，骨架预留位置（PRD §2.5）
+
+### 3. 技术债
+
+- [ ] **`TestIndexRingSurvivesProcessRestart` 失败**：模拟进程重启后重建样本环，无法用落库样本继续差分（实际 `window=0s`，期望 `10s`）—— 先定位 `loadIndexSamples` 的窗口判定（`internal/es/rate.go` / `snapshot_store.go`），这是「速率列不掉档」的核心收益，不宜带红灯进 Phase 2
+- [ ] 顺手：`components/workbench/WorkbenchGrid.vue` 里未使用的 `fmtBytes` / `fmtInt` 导入会让 `pnpm build` 的 `vue-tsc` 步骤失败
 
 ---
 
-## 🧭 页面骨架与交互（本轮）
+## ⏭ 后续
 
-> 方案见 [PRD.md](./PRD.md) §2.5；**页面数量不变**，只调整框架与交互层级。
+### Phase 2 — Dev Console（下一步重点）
 
-- [x] 取消侧边栏，改为顶栏：左侧集群切换器 │ 右侧模块 Tab（Overview / Indices / Shards / Dev Console）
-- [x] 集群切换器：点开即选、最近使用优先、集群 > 8 个时提供搜索、底部「管理集群 →」
-- [x] 切集群保持当前模块（push 历史，后退可回上一个集群）
-- [x] Hub 退回「管理 + 浏览」：保留卡片墙，移除重复的刷新按钮，共用顶栏
-- [x] 过滤 / 排序 / 分页挂在「集群」上：同集群各模块共享，跨集群隔离
-- [x] 状态解析优先级：URL query → 该集群上次的状态 → 默认值
-- [x] 刷新收敛为全局单入口（顶栏），「更新于 N 秒前」常驻顶栏
-- [x] 总览问题清单 → 分片分布深链（点索引名带上过滤条件）
-- [x] 无效集群 id 统一收敛回 Hub
-- [x] 模块 keep-alive；轮询迁到 `onActivated` / `onDeactivated`
-- [x] 清理原型残留（`Dashboard.vue` / `HelloWorld.vue` 及未引用 asset）
-- [ ] 键盘支持（`⌘K` / 模块切换 / `/` 聚焦）：本轮显式不做，见 PRD §2.5
-
----
-
-## ⏭ 后续阶段
-
-### Phase 2 — Dev Console
 - [x] Monaco Editor 集成与真实请求发送
 - [x] 命令目录侧边栏：解析当前编辑器命令行生成大纲，点击定位到对应行
 - [x] 编辑内容按集群保持：草稿落 localStorage，切集群各自独立、刷新/重开恢复
-- [x] ~~命令目录的 Saved / History 占位 Tab~~ 已砍（无实现，仅占位）
+- [x] 工作台内以顶栏模式切换承载控制台（首次切入才挂载，之后保活）
 - [ ] **智能提示（重点增强）**：上下文感知的补全 —— 按命令行 / HTTP 方法 / 路径 / 请求体位置，推断 ES API、索引 / 别名、字段、查询 DSL 片段与常用参数（详见 PRD §6 Phase 2）
 - [ ] ~~请求历史（最近 200 条）~~ 暂缓，后续再评估
 - [ ] ~~命令收藏夹与变量占位符~~ 暂缓，后续再评估
 
 ### Phase 3 — 差异化探索（待定）
+
 - [ ] 差异化押注确定（见 PRD §10）
 - [ ] 多集群统一视角
 - [ ] 跨集群执行对比
 
 ### 平台能力
+
+- [ ] `_cat/recovery` 接入：补上指标条的「恢复吞吐 / 剩余量」（当前留白）
 - [ ] 配置文件预置集群
 - [ ] 集群凭据 AES-GCM 加密存储
+- [ ] 多实例部署下的跨进程采集去重（见 PRD §10）
 
 ### 最后环节 — 打包与多平台发布
+
 > **前置条件：直到我们认为所有设计功能都完成之前，前面各阶段都不考虑实现打包与发布。**
+
 - [ ] `embed.FS` 内嵌前端 + 单二进制构建脚本
 - [ ] 交叉编译 / 多平台发布（Windows / macOS / Linux）
 - [ ] Electron 打包与托盘（Windows / macOS / Linux）
 
 ---
 
-## ✅ 已完成 (Done)
+## ✅ 已完成（Phase 1 归档）
 
-- [x] 前端：Dev Console 基础版（Monaco 集成、ES 语法高亮与补全、真实请求发送）
-- [x] 前端：集群选择与全局状态管理（Pinia + LocalStorage）
-- [x] 前端：基础布局（侧边栏、顶部集群选择器、UnoCSS 主题）
-- [x] 后端：ES 通用代理 `/api/proxy/*path`（含 Basic / ApiKey 认证）
-- [x] 后端：集群 CRUD（List / Create / Get / Delete）
-- [x] 后端：SQLite 初始化与建表迁移
+### 集群连接管理（含连通性探测）
+
+- [x] 集群 CRUD（List / Create / Update / Get / Delete）
+- [x] 可复用的 ES 请求层 `internal/es/client.go`
+- [x] `Probe` 探测（`GET /` + `GET /_cluster/health`）与 `POST /api/clusters/probe`（不落库）
+- [x] 强制「先探测、后保存」（新增、以及编辑时连接信息变更）
+- [x] 多 host 故障转移（仅传输层错误才切换；记住最近可用节点优先命中；全失败报「N 个 host 均不可达」）
+- [x] Hub 卡片墙（空状态 / 新增 / 编辑 / 删除二次确认 / 手动刷新）；活动集群由 URL 决定
+
+### 集群健康采集
+
+- [x] `internal/es/collector.go`：按需激活的共享采集（5s 间隔 + 失败指数退避）+ 内存快照
+- [x] `(集群, kind)` 共享缓存 + 单飞去重 + `lastAccess` 空闲淘汰（PRD §6.3）
+- [x] kind 扩展：`nodes` / `shards` / `indices` / `aliases`
+- [x] 数据接口 `GET /api/clusters/:id/{nodes,indices,shards,aliases}`，统一返回 `{ data, updated_at }`
+- [x] 快照落库（`snapshots` 表，gzip）：内存淘汰 / 进程重启后先渲染落库快照再后台刷新
+- [x] 速率样本环（`index_samples` 表）与索引写入 / 搜索速率（就地差分，窗口 60s，随快照返回 `rate_window_ms`）
+
+### 统一工作台
+
+- [x] 指标条：health + 索引健康环 + active 占比；节点 / 索引 / 主副分片 / 文档 / 存储计数；分片构成堆叠条
+- [x] 活动区：relocating / initializing 分片、未分配分片（含原因）、非 green 索引；「健康 / 恢复」折叠开关；点索引名就地过滤到网格
+- [x] 统一网格：索引视角（行 = 索引、列 = 节点）与节点视角（行 = 节点、列 = 索引）一键切换；分片方块按状态着色、实心 / 虚线区分主副；未分配分片单列
+- [x] 网格过滤与排序：索引名搜索、隐藏 `.` 开头索引（默认开）、只看有问题的索引、按前缀归并（组头汇总）、排序（写入 / 查询速率、文档、存储、health）、分页
+- [x] 数据接口 `GET /api/clusters/:id/overview`（聚合 status / nodes / indices / shards，支持 `?refresh=1`）
+- [x] 快照未就绪时的空态 / 不可达态 / 15s 轮询与顶栏「更新于 N 秒前」
+
+### 页面骨架与交互
+
+- [x] 取消侧边栏；顶栏承载「集群切换器 │ 集群级刷新 │ 更新于 N 秒前 │ 语言 / 主题 │ 工作台·控制台模式切换」
+- [x] 集群切换器：点开即选、最近使用优先、集群 > 8 个时提供搜索、底部「管理集群 →」
+- [x] 切集群保持当前页面（push 历史，后退可回上一个集群）
+- [x] Hub 退回「管理 + 浏览」：卡片墙 + 增删改 + 共用顶栏
+- [x] 刷新收敛为集群级单入口；无效集群 id 统一收敛回 Hub
+- [x] 清理原型残留（`Dashboard.vue` / `HelloWorld.vue` 及未引用 asset）
+- [x] 主题抽取为 `useTheme` 组合式（持久化到 localStorage）+ 接入 vue-i18n 与语言切换
+- [x] ~~模块 keep-alive / 过滤条件按集群共享~~ 随模块页一并取消（工作台自带同屏两态不销毁）
+
+### 项目地基
+
 - [x] 文档：PRD / ARCHITECTURE / TASKS / CHANGELOG 体系
-- [x] 工程：Air 热重载、.gitignore、.gitkeep、pnpm + Vite 代理
+- [x] 后端：SQLite 初始化与建表迁移
+- [x] 工程：Air 热重载、.gitignore、.gitkeep、pnpm + Vite 代理、UnoCSS 主题

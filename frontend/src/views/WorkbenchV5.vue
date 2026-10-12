@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useClusterStore } from '../stores/cluster'
 import { overviewApi, type Overview } from '../api/overview'
@@ -27,6 +27,7 @@ import type {
 import '../styles/workbench-v5.less'
 
 const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
 const clusterStore = useClusterStore()
 const { isDark, toggleTheme } = useTheme()
@@ -538,6 +539,15 @@ watch(clusterId, (id) => {
   loadAll()
   loadAllocation()
 })
+
+// 集群已被删除、URL 又是历史 / 书签时收敛回 Hub：工作台只服务真实存在的集群，
+// 否则会停在一个永远加载不出来的页面上（见 PRD §4）
+watch(
+  [() => clusterStore.loaded, clusterId, () => clusterStore.clusters.length],
+  () => {
+    if (clusterStore.loaded && !clusterStore.clusterById(clusterId.value)) router.replace('/')
+  },
+)
 </script>
 
 <template>

@@ -9,25 +9,25 @@
 ```
 ┌─────────────────────────────────────────────────────┐
 │                    前端 (Vue 3)                       │
-│  ┌──────────┐ ┌─────────────┐ ┌──────────────────┐  │
-│  │ 集群管理  │ │ Dev Console │ │  Shard 可视化     │  │
-│  └──────────┘ └─────────────┘ └──────────────────┘  │
+│  ┌─────────────┐   ┌────────────────────────────┐   │
+│  │ Cluster Hub │   │ 工作台 /workbench/:id        │   │
+│  │  管理与浏览  │   │ 指标条·活动区·统一网格·控制台 │   │
+│  └─────────────┘   └────────────────────────────┘   │
 │              Naive UI + Pinia + Vue Router            │
 └────────────────────┬────────────────────────────────┘
                      │ HTTP (REST API)
 ┌────────────────────▼────────────────────────────────┐
 │                后端 (Go + Gin)                        │
 │                                                       │
-│  /api/clusters/*   集群 CRUD + 健康检测               │
-│  /api/proxy/*      ES 请求透明转发（Dev Console 核心）│
-│  /api/indices/*    索引列表（服务端过滤/分页）         │
-│  /api/shards/*     Shard 状态与分布                   │
-│  /api/nodes/*      节点信息                           │
-│  /*                静态资源（embed.FS 内嵌前端）       │
+│  /api/clusters/*      集群 CRUD + 探测 + 健康采集      │
+│  /api/proxy           ES 请求转发（Dev Console 核心）  │
+│  /api/clusters/:id/*  聚合数据（overview / nodes /    │
+│                       indices / shards / aliases）    │
+│  /*                   静态资源（embed.FS 内嵌前端）    │
 │                                                       │
 │  ┌─────────────────────────────────────────────┐     │
 │  │           SQLite (modernc.org/sqlite)        │     │
-│  │   clusters / snippets / console_history      │     │
+│  │      clusters / snapshots / index_samples    │     │
 │  └─────────────────────────────────────────────┘     │
 └────────────────────┬────────────────────────────────┘
                      │ HTTP（直接调用 ES REST API）
@@ -50,28 +50,29 @@ espulse/
 ├── go.sum
 │
 ├── internal/
-│   ├── config/
-│   │   └── config.go            # 从环境变量 / 配置文件读取（端口、数据目录等）
+│   ├── config/                  # 预留：端口 / 数据目录等配置（当前为空，实现未排期）
 │   │
 │   ├── database/
 │   │   ├── db.go                # SQLite 连接初始化（modernc.org/sqlite + database/sql）
-│   │   └── migrate.go           # 建表 / 版本迁移
+│   │   └── migrate.go           # 建表 / 版本迁移（clusters / snapshots / index_samples）
 │   │
 │   ├── models/
-│   │   ├── cluster.go           # Cluster 结构体 + CRUD 方法
-│   │   ├── snippet.go           # Snippet 结构体 + CRUD 方法
-│   │   └── history.go           # ConsoleHistory 结构体 + CRUD 方法
+│   │   └── cluster.go           # Cluster 结构体 + CRUD
 │   │
 │   ├── handlers/
-│   │   ├── clusters.go          # GET/POST/PUT/DELETE /api/clusters
-│   │   ├── proxy.go             # POST /api/proxy/:cluster_id  ES 请求转发
-│   │   ├── indices.go           # GET /api/clusters/:id/indices
-│   │   ├── shards.go            # GET /api/clusters/:id/shards
-│   │   └── nodes.go             # GET /api/clusters/:id/nodes
+│   │   ├── clusters.go          # 集群 CRUD + probe / refresh
+│   │   ├── overview.go          # GET /api/clusters/:id/overview（聚合 status+nodes+indices+shards）
+│   │   ├── catalog.go           # nodes / indices / shards / aliases（后端过滤 + 排序 + 分页）
+│   │   ├── catalog_test.go
+│   │   └── proxy.go             # POST /api/proxy  固定信封的 ES 请求转发
 │   │
 │   ├── es/
-│   │   ├── client.go            # ES 客户端池（cluster_id → *http.Client + baseURL）
-│   │   └── request.go           # 封装向 ES 发送 HTTP 请求的通用方法
+│   │   ├── client.go            # ES 客户端（SharedClient / ProbeClient / CatalogClient）+ 多 host 故障转移
+│   │   ├── cat.go               # _cat/*?format=json 解析与索引过滤 / 排序
+│   │   ├── collector.go         # 按需激活的共享采集（缓存 + 单飞去重 + lastAccess 淘汰）
+│   │   ├── rate.go              # 索引写入 / 搜索速率的就地差分（样本环，窗口 60s）
+│   │   ├── snapshot_store.go    # 快照落库（gzip）与样本读写
+│   │   └── collector_test.go
 │   │
 │   └── router/
 │       └── router.go            # Gin 路由注册 + 静态资源 embed 挂载
@@ -79,42 +80,37 @@ espulse/
 ├── frontend/                    # Vue 3 前端（独立开发，构建产物内嵌进 Go）
 │   ├── src/
 │   │   ├── main.ts
-│   │   ├── router/index.ts
-│   │   ├── stores/
-│   │   │   ├── cluster.ts       # 当前活动集群
-│   │   │   └── console.ts       # Dev Console Tab / 历史状态
+│   │   ├── App.vue
+│   │   ├── router/index.ts      # `/`（Hub）与 `/workbench/:id`（工作台）；旧 `/cluster/:id/*` 重定向到工作台
+│   │   ├── layouts/
+│   │   │   └── MainLayout.vue   # Hub 的外壳（品牌 + 集群切换器 + 刷新 / 主题），工作台自带顶栏不用它
 │   │   ├── views/
-│   │   │   ├── Dashboard.vue
-│   │   │   ├── Console.vue
-│   │   │   ├── Indices.vue
-│   │   │   ├── Shards.vue
-│   │   │   └── Settings.vue
+│   │   │   ├── ClusterHub.vue   # 集群管理 + 浏览（增删改、0 集群引导、卡片墙）
+│   │   │   └── WorkbenchV5.vue  # 统一工作台：指标条 + 活动区 + 统一网格 + Dev Console 模式
 │   │   ├── components/
-│   │   │   ├── ClusterSelector.vue
-│   │   │   ├── ShardHeatmap.vue
-│   │   │   └── MonacoEditor.vue
-│   │   └── api/
-│   │       ├── clusters.ts
-│   │       ├── proxy.ts
-│   │       ├── indices.ts
-│   │       └── shards.ts
+│   │   │   ├── ClusterSwitcher.vue
+│   │   │   └── workbench/
+│   │   │       ├── WorkbenchGrid.vue     # 索引视角 / 节点视角的统一网格
+│   │   │       ├── WorkbenchConsole.vue  # Monaco + 命令目录 + 请求执行
+│   │   │       └── types.ts
+│   │   ├── composables/         # useTheme / useLocale / useGlobalRefresh
+│   │   ├── i18n/                # index.ts + locales/{zh-CN,en-US}.ts
+│   │   ├── stores/              # cluster.ts（集群列表与状态）、metadata.ts（控制台补全用的索引 / 字段元数据）
+│   │   ├── styles/              # workbench-v5.less（作用域限定 .esp-wb）
+│   │   ├── utils/               # format.ts（字节 / 整数 / 速率）、freshness.ts（更新于 N 秒前）
+│   │   └── api/                 # clusters.ts / catalog.ts / overview.ts
+│   ├── ui_prototype/            # 设计参考用的独立 HTML 原型（不被构建引用）
 │   ├── package.json
-│   └── vite.config.ts           # 构建输出到 ../static/dist/
-│
-├── static/
-│   └── dist/                    # Vite 构建产物（由 embed.FS 内嵌）
-│
-├── electron/                    # 桌面端（P2 阶段）
-│   ├── main.js                  # 主进程：拉起 Go 子进程 + 创建 BrowserWindow
-│   ├── preload.js
-│   └── package.json
+│   └── vite.config.ts
 │
 ├── scripts/
-│   ├── build.sh                 # 一键构建：前端 → Go 编译 → 输出二进制
-│   └── build-all.sh             # 交叉编译三平台产物
+│   └── docker-es-test.yml       # 本地 ES 测试集群
 │
-└── espulse.service              # systemd 服务模板
+└── api/
+    └── clusters.http            # 手工验证用的 HTTP 请求集
 ```
+
+> 前端页面骨架（层级、Hub 与工作台的职责、切集群与刷新规则）见 [PRD.md](./PRD.md) §2.5；工作台各区域的职责边界见 §6.4。
 
 ---
 
@@ -190,21 +186,23 @@ CREATE TABLE IF NOT EXISTS index_samples (
 ```
 GET    /api/clusters                    列出所有集群（含实时健康状态）
 POST   /api/clusters                    添加集群（保存前做连通性测试）
+POST   /api/clusters/probe              单独探测（不落库，保存前强制走这一步）
+POST   /api/clusters/refresh            手动触发当前集群重采（绕过刷新间隔，仍走单飞去重）
 GET    /api/clusters/:id                获取单个集群详情
 PUT    /api/clusters/:id                更新集群配置
-DELETE /api/clusters/:id                删除集群
-POST   /api/clusters/:id/test           单独测试连接（不保存）
+DELETE /api/clusters/:id                删除集群（连带清掉快照与速率样本）
 ```
 
 ### ES 请求代理（Dev Console 核心）
 ```
-POST   /api/proxy/:cluster_id
+POST   /api/proxy
+Header: X-Cluster-ID: <cluster_id>
 
 Request body:
 {
   "method": "GET",
-  "path":   "/_cat/indices?v&format=json",
-  "body":   {}
+  "path":   "_cat/indices?v&format=json",
+  "body":   ""
 }
 
 Response:
@@ -214,15 +212,16 @@ Response:
   "body":        { ...ES 原始响应... }
 }
 ```
-后端收到请求后，从连接池取出对应集群的 HTTP 客户端，原样转发请求并返回 ES 响应。**不对请求内容做任何解析或封装**，保持与 ES 的完全兼容。
+请求采用**固定 POST + JSON 信封**（而不是把方法 / 路径编码进 URL）：集群 id 走 `X-Cluster-ID`，`method` 只允许 ES 语义下的安全集合，`body` 是原样透传的字符串。后端不做任何解析或封装，保持与 ES 的完全兼容。
 
 ### 集群数据接口
 ```
-GET    /api/clusters/:id/overview                    总览页聚合数据（status+nodes+indices+shards），?refresh=1 强制重采
+GET    /api/clusters/:id/overview                    工作台聚合数据（status+nodes+indices+shards），?refresh=1 强制重采
 GET    /api/clusters/:id/nodes
-GET    /api/clusters/:id/indices?search=&health=&status=&page=&page_size=   后端过滤 + 分页，返回 { data, total, page, page_size, updated_at }
+GET    /api/clusters/:id/indices?search=&health=&status=&hide_system=1&sort=&order=&page=&page_size=
+                                                     后端过滤 + 排序 + 分页，返回 { data, total, page, page_size, updated_at }
 GET    /api/clusters/:id/shards
-GET    /api/clusters/:id/shards/active   仅返回 INITIALIZING / RELOCATING 状态的分片
+GET    /api/clusters/:id/aliases
 ```
 
 **采集模型**：采集器按 `(集群, 数据类型)` 维护共享缓存，采用「需求驱动 + 单飞去重」——只有被页面订阅的数据类型才会被定时刷新，同一缓存项的并发请求只触发一次 ES 调用，`lastAccess` 超过空闲阈值的缓存项停止刷新并被淘汰。接口语义是「读缓存（必要时触发刷新）」，而非「每次请求都采集」，因此服务器模式下 N 个并发用户只对应一份采集。数据类型、刷新间隔与生命周期详见 PRD §6.3。
