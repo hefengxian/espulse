@@ -16,6 +16,7 @@
 - **Frontend**: 工作台接管「无效集群 id 收敛回 Hub」的守卫 —— 这段逻辑原先在 `MainLayout` 里（它包裹旧模块页），而工作台是独立路由、不在其下；旧页删掉后，删集群留下的历史 / 书签会停在一个永远加载不出来的工作台上，因此把守卫移进工作台（集群列表加载完成后仍找不到该 id → 回 Hub）。
 - **Docs**: PRD 转正 —— §2.5 重写为「Hub / 集群切换器 / 统一工作台」三层骨架（并说明为什么把 Overview + Indices + Shards 合成一页），§2.4 的「不新增栏目」改以「视角 / 模式切换不是栏目」表述，§3 典型一天、§6（Phase 1 表、6.1 指标条与活动区、6.2 统一网格、6.3 kind 归属、6.4 各区域职责边界）、§7 当前实施范围同步；TASKS 重排为「工作台转正 / 已知缺口 / 技术债 / 后续」；ARCHITECTURE 目录结构与路由同步。
 - **Docs**: 显式记录两处**已知缺口**（属「还没做」，不是「不做」）：旧版索引页的**别名视图**尚未迁入工作台（`_cat/aliases` 采集与接口都还在），以及视角 / 过滤条件仍未 URL 化。
+- **Frontend**: 去掉「并存时期」留下的 `v5` 后缀 —— `views/WorkbenchV5.vue` → `views/Workbench.vue`、`styles/workbench-v5.less` → `styles/workbench.less`、路由名 `WorkbenchV5` → `Workbench`。原型稿 `ui_prototype/espulse-workbench-v5.html` 是一组设计参考中的一版，名字保留。
 
 ### 2026-10-10
 

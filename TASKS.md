@@ -24,6 +24,7 @@
 - [x] Cluster Hub 整合：集群卡片点击直接进工作台（不再跳旧版 Overview）
 - [x] 集群切换器统一目标：Hub 或任意工作台内切换，落地都是 `/workbench/:id`
 - [x] 无效集群 id 的守卫移入工作台（原先在包裹旧模块页的 `MainLayout` 里，删集群后的书签不会停在空工作台）
+- [x] 命名收尾：去掉并存时期的 `v5` 后缀（`views/Workbench.vue`、`styles/workbench.less`、路由名 `Workbench`；原型稿 `ui_prototype/espulse-workbench-v5.html` 是设计参考，保留原名）
 - [x] 文档转正：PRD §2.4 / §2.5 / §3 / §6 / §7、ARCHITECTURE §1 §2 §4、CHANGELOG
 
 ### 2. 工作台的已知缺口

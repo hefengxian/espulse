@@ -1,7 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import MainLayout from '../layouts/MainLayout.vue'
 import ClusterHub from '../views/ClusterHub.vue'
-import WorkbenchV5 from '../views/WorkbenchV5.vue'
+import Workbench from '../views/Workbench.vue'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -10,8 +10,8 @@ const router = createRouter({
       // 统一工作台（全屏独立页面，自带顶栏）：集群的唯一落地页，
       // 承载指标条 / 活动区 / 统一网格（索引·节点双视角）与 Dev Console 模式
       path: '/workbench/:id',
-      name: 'WorkbenchV5',
-      component: WorkbenchV5,
+      name: 'Workbench',
+      component: Workbench,
     },
     {
       path: '/',

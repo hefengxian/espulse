@@ -23,8 +23,8 @@ import type {
   WbNodeCol,
   WbNodeRow,
 } from '../components/workbench/types'
-// v5 工作台样式：作用域限定在 .esp-wb，与现有 UnoCSS 页面互不影响
-import '../styles/workbench-v5.less'
+// 工作台样式：作用域限定在 .esp-wb，与 UnoCSS 页面互不影响
+import '../styles/workbench.less'
 
 const route = useRoute()
 const router = useRouter()

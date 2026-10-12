@@ -135,7 +135,7 @@ const MONO_FONT = getComputedStyle(document.documentElement)
   .getPropertyValue('--esp-font-mono')
   .trim() || 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 
-// 自定义 Monaco 主题：颜色取自 workbench-v5.less 的 .esp-wb 令牌（Monaco 不认 var()，只能写字面量），
+// 自定义 Monaco 主题：颜色取自 workbench.less 的 .esp-wb 令牌（Monaco 不认 var()，只能写字面量），
 // 让嵌入式控制台的编辑器背景 / 前景随 V5 明暗主题一致。
 const MONACO_THEME = { dark: 'esp-v5-dark', light: 'esp-v5-light' } as const
 

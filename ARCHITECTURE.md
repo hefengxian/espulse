@@ -86,7 +86,7 @@ espulse/
 │   │   │   └── MainLayout.vue   # Hub 的外壳（品牌 + 集群切换器 + 刷新 / 主题），工作台自带顶栏不用它
 │   │   ├── views/
 │   │   │   ├── ClusterHub.vue   # 集群管理 + 浏览（增删改、0 集群引导、卡片墙）
-│   │   │   └── WorkbenchV5.vue  # 统一工作台：指标条 + 活动区 + 统一网格 + Dev Console 模式
+│   │   │   └── Workbench.vue    # 统一工作台：指标条 + 活动区 + 统一网格 + Dev Console 模式
 │   │   ├── components/
 │   │   │   ├── ClusterSwitcher.vue
 │   │   │   └── workbench/
@@ -96,7 +96,7 @@ espulse/
 │   │   ├── composables/         # useTheme / useLocale / useGlobalRefresh
 │   │   ├── i18n/                # index.ts + locales/{zh-CN,en-US}.ts
 │   │   ├── stores/              # cluster.ts（集群列表与状态）、metadata.ts（控制台补全用的索引 / 字段元数据）
-│   │   ├── styles/              # workbench-v5.less（作用域限定 .esp-wb）
+│   │   ├── styles/              # workbench.less（作用域限定 .esp-wb）
 │   │   ├── utils/               # format.ts（字节 / 整数 / 速率）、freshness.ts（更新于 N 秒前）
 │   │   └── api/                 # clusters.ts / catalog.ts / overview.ts
 │   ├── ui_prototype/            # 设计参考用的独立 HTML 原型（不被构建引用）

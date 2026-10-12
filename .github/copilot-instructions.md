@@ -19,7 +19,7 @@ ESPulse = Go + Vue 3 的轻量 Elasticsearch 集群管理工具，目标替代�
 | 路由 | 页面 | 职责 |
 |---|---|---|
 | `/` | `views/ClusterHub.vue`（外壳 `layouts/MainLayout.vue`） | 集群管理 + 浏览：卡片墙、增删改、0 集群引导 |
-| `/workbench/:id` | `views/WorkbenchV5.vue` | **集群唯一落地页**：指标条 → 活动区 → 统一网格（索引 / 节点双视角）→ Dev Console 模式 |
+| `/workbench/:id` | `views/Workbench.vue` | **集群唯一落地页**：指标条 → 活动区 → 统一网格（索引 / 节点双视角）→ Dev Console 模式 |
 
 - **已删除、不要再引入**：`ClusterOverview.vue` / `ClusterIndices.vue` / `ClusterShards.vue` / `DevConsole.vue` / `composables/useViewFilters.ts`；旧路径 `/cluster/:id/*` 只在路由里做重定向。
 - 集群切换器（`components/ClusterSwitcher.vue`）统一把用户带向 `/workbench/:id`。
@@ -28,7 +28,7 @@ ESPulse = Go + Vue 3 的轻量 Elasticsearch 集群管理工具，目标替代�
 ## 代码约定
 
 - 注释与文档全部用**中文**；注释只写「为什么」，不写「做了什么」。
-- 前端：Vue 3 `<script setup>` + TypeScript + UnoCSS + Naive UI；工作台专属样式写在 `styles/workbench-v5.less`（作用域 `.esp-wb`），不要影响 UnoCSS 页面。
+- 前端：Vue 3 `<script setup>` + TypeScript + UnoCSS + Naive UI；工作台专属样式写在 `styles/workbench.less`（作用域 `.esp-wb`），不要影响 UnoCSS 页面。
 - 后端：Go + Gin，HTTP 客户端走 `internal/es/client.go` 的 `SharedClient` / `ProbeClient` / `CatalogClient`；ES 接口只用跨版本稳定的 `_cluster/health`、`_cat/*?format=json`。
 - 前端文案先落 `i18n/locales/{zh-CN,en-US}.ts`，不要硬编码在模板里。
 
