@@ -39,7 +39,15 @@
   --violet-bd: rgba(179, 157, 255, 0.28);
   --mono: var(--esp-font-mono, 'JetBrains Mono', ui-monospace, Menlo, monospace);
   --sans: var(--esp-font-sans, 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif);
+
+  /* 字号系统：全站只有这 4 档。层级优先用颜色 / 字重 / 字体族表达，字号不再做 0.5px 微调 */
+  --fs-micro: 10px;   /* 微标签：表头、单位、图例、轴刻度、进度百分比 */
+  --fs-data: 11px;    /* 数据：网格数值、索引 / 节点名、状态栏、元信息 */
+  --fs-ui: 12px;      /* 界面：控件、正文、面板标题 */
+  --fs-hero: 14px;    /* 强调：指标数值、品牌名 */
+
   --row-h: 26px;
+  --shard: 16px;
 
   position: relative;
   display: flex;
@@ -49,7 +57,7 @@
   font-family: var(--sans);
   background: var(--bg);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
@@ -72,6 +80,18 @@ html.light .esp-wb {
 
 .esp-wb .mono {
   font-family: var(--mono);
+}
+
+/* 中文没有大小写：uppercase 对汉字无效，而 letter-spacing 只会把汉字拉开。
+   按语言整体收口，拉丁界面保留原设计的字距 */
+:lang(zh) .esp-wb .vstat .k,
+:lang(zh) .esp-wb .wgrid thead th,
+:lang(zh) .esp-wb table.rt th,
+:lang(zh) .esp-wb .eb-head .ttl,
+:lang(zh) .esp-wb .eb-sec > h4,
+:lang(zh) .esp-wb .psub,
+:lang(zh) .esp-wb .alloc .alloc-lbl {
+  letter-spacing: 0;
 }
 
 .esp-wb ::-webkit-scrollbar {
@@ -117,7 +137,7 @@ html.light .esp-wb {
 
 .esp-wb .brand span {
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: var(--fs-hero);
 }
 
 .esp-wb .vsep {
@@ -150,7 +170,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .csw .nm {
-  font-size: 12.5px;
+  font-size: var(--fs-ui);
   font-weight: 500;
   flex: 1;
   overflow: hidden;
@@ -159,7 +179,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .csw .mod {
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   font-family: var(--mono);
 }
@@ -174,7 +194,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .tab {
-  font-size: 12.5px;
+  font-size: var(--fs-ui);
   font-weight: 500;
   color: var(--text-2);
   padding: 0 11px;
@@ -207,7 +227,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .stateSw .o {
-  font-size: 11px;
+  font-size: var(--fs-ui);
   font-weight: 600;
   color: var(--text-3);
   padding: 0 9px;
@@ -233,7 +253,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .fresh {
-  font-size: 11.5px;
+  font-size: var(--fs-data);
   color: var(--text-3);
   font-family: var(--mono);
   display: flex;
@@ -299,7 +319,7 @@ html.light .esp-wb {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--fs-ui);
   color: var(--text-3);
   flex: 0 0 auto;
 }
@@ -316,7 +336,7 @@ html.light .esp-wb {
   color: var(--text);
   border-radius: 6px;
   padding: 0 5px;
-  font-size: 11px;
+  font-size: var(--fs-ui);
   font-family: var(--mono);
 }
 
@@ -333,7 +353,7 @@ html.light .esp-wb {
 .esp-wb .alloc.warn::before {
   content: '⚠';
   color: var(--yellow);
-  font-size: 11px;
+  font-size: var(--fs-ui);
 }
 
 /* ---------- vitals ---------- */
@@ -393,7 +413,7 @@ html.light .esp-wb {
   height: 23px;
   padding: 0 9px;
   border-radius: 7px;
-  font-size: 12px;
+  font-size: var(--fs-ui);
   font-weight: 700;
   font-family: var(--mono);
 }
@@ -425,7 +445,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .vstat .k {
-  font-size: 9.5px;
+  font-size: var(--fs-micro);
   color: var(--text-4);
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -433,13 +453,13 @@ html.light .esp-wb {
 }
 
 .esp-wb .vstat .v {
-  font-size: 13px;
+  font-size: var(--fs-hero);
   font-weight: 600;
   font-family: var(--mono);
 }
 
 .esp-wb .vstat .v small {
-  font-size: 10px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   margin-left: 3px;
   font-weight: 500;
@@ -492,7 +512,7 @@ html.light .esp-wb {
 .esp-wb .ministat {
   display: flex;
   gap: 10px;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-family: var(--mono);
   color: var(--text-3);
 }
@@ -521,7 +541,7 @@ html.light .esp-wb {
   align-items: center;
   justify-content: space-between;
   gap: 4px 12px;
-  font-size: 9.5px;
+  font-size: var(--fs-micro);
   font-family: var(--mono);
   color: var(--text-3);
 }
@@ -561,7 +581,7 @@ html.light .esp-wb {
   align-items: center;
   gap: 9px;
   padding: 0 14px;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   color: var(--text-3);
   font-family: var(--mono);
   white-space: nowrap;
@@ -624,7 +644,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .eb-head .ttl {
-  font-size: 11px;
+  font-size: var(--fs-ui);
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -633,7 +653,7 @@ html.light .esp-wb {
 
 .esp-wb .eb-head .cnt {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-data);
   color: var(--text-2);
 }
 
@@ -644,7 +664,7 @@ html.light .esp-wb {
 .esp-wb .eb-head .sp {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-data);
   color: var(--text-3);
 }
 
@@ -663,7 +683,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .eb-sec > h4 {
-  font-size: 11px;
+  font-size: var(--fs-ui);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -681,7 +701,7 @@ html.light .esp-wb {
 
 .esp-wb .eb-sec > h4 .hint {
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -695,7 +715,7 @@ html.light .esp-wb {
 }
 
 .esp-wb table.rt th {
-  font-size: 9.5px;
+  font-size: var(--fs-micro);
   letter-spacing: 0.05em;
   color: var(--text-4);
   font-weight: 600;
@@ -705,7 +725,7 @@ html.light .esp-wb {
 }
 
 .esp-wb table.rt td {
-  font-size: 11px;
+  font-size: var(--fs-data);
   padding: 4px 6px;
   border-bottom: 1px solid var(--border);
   font-family: var(--mono);
@@ -758,7 +778,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .prog .pct {
-  font-size: 10px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   min-width: 26px;
 }
@@ -768,7 +788,7 @@ html.light .esp-wb {
   align-items: center;
   gap: 12px;
   padding: 7px 12px 1px;
-  font-size: 10.5px;
+  font-size: var(--fs-data);
   font-family: var(--mono);
   color: var(--text-3);
   flex-wrap: wrap;
@@ -797,7 +817,7 @@ html.light .esp-wb {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--fs-data);
   font-family: var(--mono);
   padding: 3px 6px;
   border-radius: 5px;
@@ -820,7 +840,7 @@ html.light .esp-wb {
 .esp-wb .prow .rs {
   margin-left: auto;
   color: var(--text-3);
-  font-size: 10.5px;
+  font-size: var(--fs-data);
   flex: 0 0 auto;
 }
 
@@ -830,7 +850,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .psub {
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -870,7 +890,7 @@ html.light .esp-wb {
 }
 
 .esp-wb .seg .o {
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   color: var(--text-2);
   padding: 0 8px;
   height: 18px;
@@ -903,7 +923,7 @@ html.light .esp-wb {
   border: none;
   background: transparent;
   color: var(--text);
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   outline: none;
   width: 100%;
   font-family: var(--sans);
@@ -920,7 +940,7 @@ html.light .esp-wb {
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-2);
-  font-size: 11px;
+  font-size: var(--fs-ui);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -944,7 +964,7 @@ html.light .esp-wb {
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   flex: 0 0 auto;
 }
@@ -1003,7 +1023,7 @@ html.light .esp-wb {
   border-bottom: 1px solid var(--border-2);
   font-weight: 600;
   color: var(--text-3);
-  font-size: 9.5px;
+  font-size: var(--fs-micro);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   text-align: left;
@@ -1053,7 +1073,7 @@ html.light .esp-wb {
   height: var(--row-h);
   border-bottom: 1px solid var(--border);
   padding: 0 8px;
-  font-size: 11.5px;
+  font-size: var(--fs-data);
   color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
@@ -1105,8 +1125,8 @@ html.light .esp-wb {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  /* 与索引名（td.index）统一：mono / 11px / 500 */
-  font-size: 11px;
+  /* 与索引名（td.index）统一：mono / data 档 / 500 */
+  font-size: var(--fs-data);
   font-weight: 500;
   font-family: var(--mono);
   color: var(--text);
@@ -1126,7 +1146,7 @@ html.light .esp-wb {
   gap: 6px;
   margin-top: 3px;
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: var(--fs-micro);
   font-weight: 500;
   color: var(--text-3);
   text-transform: none;
@@ -1155,7 +1175,7 @@ html.light .esp-wb {
 .esp-wb td.index {
   color: var(--text);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-data);
   font-weight: 500;
 }
 
@@ -1163,7 +1183,7 @@ html.light .esp-wb {
 .esp-wb .nodename {
   color: var(--text);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-data);
   font-weight: 500;
 }
 
@@ -1174,9 +1194,10 @@ html.light .esp-wb {
   flex: 0 0 auto;
 }
 
-/* 索引单元格：允许两行（第一行 健康点 + 名称；第二行 元信息） */
+/* 索引单元格：单行 = 健康点 + 名称 +（异常状态）+ 右对齐的元信息微列。
+   元信息绝不换行：多一行就会把 --row-h 顶高，整表密度随之下降。 */
 .esp-wb .wgrid td.index {
-  white-space: normal;
+  white-space: nowrap;
   text-overflow: clip;
   padding-top: 0;
   padding-bottom: 0;
@@ -1184,49 +1205,81 @@ html.light .esp-wb {
 
 .esp-wb .ixcell {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 3px 0;
-  min-width: 0;
-}
-
-.esp-wb .ixline1 {
-  display: flex;
   align-items: center;
   gap: 7px;
   min-width: 0;
 }
 
-.esp-wb .ixline1 .nm {
+.esp-wb td.index .nm {
+  flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.esp-wb .ixline2 {
+/* 非 open（close / frozen）索引的标记：常态不占位，异常才出现 */
+.esp-wb .ixst {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  color: var(--yellow);
+}
+
+/* 元信息微列：定宽 + 右对齐 + tabular 数字，跨行自动成列；完整值走 title */
+.esp-wb .ixmeta {
+  flex: 0 0 auto;
+  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding-left: 13px;
-  font-size: 10px;
-  color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.esp-wb .ixline2 b {
-  font-weight: 600;
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  font-weight: 500;
   color: var(--text-2);
-  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
 }
 
-.esp-wb .dotsep {
-  color: var(--text-4);
-}
-
-.esp-wb td.index .nm {
+.esp-wb .ixmeta > .ixm {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border-left: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.esp-wb .ixmeta > .ixm:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.esp-wb .ixmeta > .ixm:last-child {
+  padding-right: 0;
+}
+
+/* 三列定宽：让「主/副 · 文档 · 存储」在组头行与索引行之间也对齐成列 */
+.esp-wb .ixm.pr {
+  width: 48px;
+}
+
+.esp-wb .ixm.docs {
+  width: 42px;
+}
+
+.esp-wb .ixm.store {
+  width: 38px;
+}
+
+/* 组头条数标记：贴在最左，不参与上面三列的对齐 */
+.esp-wb .ixm.cnt {
+  color: var(--text-3);
+}
+
+/* 组头是汇总值，整体比单索引低一档，避免与真实值抢注意力 */
+.esp-wb .ixmeta.agg {
+  color: var(--text-3);
 }
 
 .esp-wb .hdot.green {
@@ -1247,7 +1300,7 @@ html.light .esp-wb {
   gap: 4px;
   padding: 1px 5px;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 600;
   font-family: var(--mono);
   line-height: 1.5;
@@ -1275,13 +1328,19 @@ html.light .esp-wb {
   color: var(--text-3);
 }
 
+/* 微号辅助文本：空占位符、节点角色等不需要建规则的零散文本 */
+.esp-wb .micro {
+  font-size: var(--fs-micro);
+}
+
 .esp-wb .st-close {
   color: var(--text-4);
 }
 
+/* 分片方块格：强制单行。单行容量由列宽决定（见 WorkbenchGrid 里的 CAP 常量），
+   超出的分片聚合成「+N」，所以行高恒为 --row-h，不会被折行顶高。 */
 .esp-wb .shardcell {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
   gap: 2px;
   max-width: 100%;
@@ -1294,14 +1353,31 @@ html.light .esp-wb {
      基线偏移（异步字体 / 不同字体偏移还不一样）。promote 到独立层后光栅化恢复正常；
      Firefox / Edge 无此问题。不要删这一行。 */
   will-change: transform;
-  width: 16px;
-  height: 16px;
+  width: var(--shard);
+  height: var(--shard);
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   font-family: var(--mono);
+  font-size: var(--fs-micro);
   transition: transform 0.2s;
   cursor: pointer;
+}
+
+/* 超出单行容量的分片聚合成的「+N」：宽度自适应、至少一个方块宽。
+   虚线（与「未分配」同一套语言）表示它不是真实分片 */
+.esp-wb .shard.more {
+  width: auto;
+  min-width: var(--shard);
+  background: transparent;
+  border: 1px dashed var(--text-3);
+  color: var(--text-3);
+  cursor: default;
+}
+
+.esp-wb .shard.more:hover {
+  transform: none;
 }
 
 .esp-wb .shard:hover {
@@ -1367,7 +1443,7 @@ html.light .esp-wb {
   align-items: center;
   gap: 7px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-data);
 }
 
 .esp-wb tr.child td.frz .ixcell {
@@ -1395,7 +1471,7 @@ html.light .esp-wb {
   padding: 0 10px;
   background: var(--bg-3);
   border-bottom: 1px solid var(--border-2);
-  font-size: 11px;
+  font-size: var(--fs-data);
   color: var(--text-3);
   font-family: var(--mono);
 }
@@ -1411,7 +1487,7 @@ html.light .esp-wb {
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text-2);
-  font-size: 11px;
+  font-size: var(--fs-data);
   cursor: pointer;
 }
 
@@ -1421,39 +1497,35 @@ html.light .esp-wb {
 }
 
 /* ---------- 索引分页栏 ---------- */
-.esp-wb .pager {
+/* 索引分页控件内嵌在底部状态栏右端，与状态信息同一行 */
+.esp-wb .statusline .pager {
   flex: 0 0 auto;
-  height: 30px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-2);
-  font-size: 11px;
-  color: var(--text-3);
-  font-family: var(--mono);
+  gap: 6px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
 }
 
 .esp-wb .pager select {
-  height: 22px;
+  height: 20px;
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 6px;
-  padding: 0 5px;
-  font-size: 11px;
+  padding: 0 4px;
+  font-size: var(--fs-data);
   font-family: var(--mono);
 }
 
 .esp-wb .pager button {
-  height: 22px;
-  padding: 0 9px;
+  height: 20px;
+  padding: 0 7px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-2);
-  font-size: 11px;
+  font-size: var(--fs-data);
   cursor: pointer;
 }
 
@@ -1467,7 +1539,7 @@ html.light .esp-wb {
   cursor: default;
 }
 
-/* ---------- status line ---------- */
+/* ---------- status line（状态信息 + 索引分页，恒为一行） ---------- */
 .esp-wb .statusline {
   flex: 0 0 auto;
   height: 25px;
@@ -1477,9 +1549,10 @@ html.light .esp-wb {
   padding: 0 12px;
   border-top: 1px solid var(--border);
   background: var(--bg-2);
-  font-size: 10.5px;
+  font-size: var(--fs-data);
   color: var(--text-3);
   font-family: var(--mono);
+  white-space: nowrap;
 }
 
 .esp-wb .statusline .sp {

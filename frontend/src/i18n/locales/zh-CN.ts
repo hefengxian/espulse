@@ -116,6 +116,7 @@ export default {
     readPerSec: '查询/s',
     nodeShardDist: '节点 · 分片分布（列头 = 节点 heap/cpu/disk）',
     unassigned: '未分配',
+    moreShards: '另有 {n} 个分片未显示',
     indexSummary: '索引 / 汇总',
     nodeSummary: '节点 / 汇总',
     nodeRole: '节点 / 角色',

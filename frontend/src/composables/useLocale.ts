@@ -14,6 +14,8 @@ export function useLocale() {
       } catch {
         // 存不下就退化为仅本次会话有效
       }
+      // <html lang> 既要给 a11y / 字体回退，也是 CSS 里 :lang(zh) 分支的唯一依据
+      document.documentElement.lang = value
     },
     { immediate: true },
   )

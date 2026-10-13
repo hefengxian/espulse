@@ -674,7 +674,7 @@ const copyResponse = async () => {
           </div>
           <div class="flex items-center gap-1.75 bg-bg-3 border border-border rounded-6px px-2.25 h-7.5 transition-all focus-within:border-accent">
             <div class="w-3 h-3 text-text-3 i-lucide-search"></div>
-            <input v-model="navFilter" type="text" :placeholder="t('console.filterPlaceholder')" class="flex-1 border-none bg-transparent text-text font-sans text-12.5px outline-none placeholder:text-text-3" />
+            <input v-model="navFilter" type="text" :placeholder="t('console.filterPlaceholder')" class="flex-1 border-none bg-transparent text-text font-sans text-12px outline-none placeholder:text-text-3" />
           </div>
         </div>
 
@@ -685,7 +685,7 @@ const copyResponse = async () => {
             :class="{ '!bg-bg-4 !border-border-2': activeLine === cmd.line }"
             @click="jumpTo(cmd.line)"
           >
-            <span class="inline-flex items-center h-4.5 px-1.5 rounded-4px text-10.5px font-700 font-mono flex-shrink-0"
+            <span class="inline-flex items-center h-4.5 px-1.5 rounded-4px text-10px font-700 font-mono flex-shrink-0"
               :class="{
                 'bg-[rgba(34,197,94,0.12)] text-[#4ade80]': cmd.method === 'GET',
                 'bg-[rgba(91,108,248,0.15)] text-[#818cf8]': cmd.method === 'POST',
@@ -695,7 +695,7 @@ const copyResponse = async () => {
             >{{ cmd.method }}</span>
             <span class="flex-1 text-12px font-mono text-text font-500 overflow-hidden text-ellipsis whitespace-nowrap">{{ cmd.text }}</span>
           </div>
-          <div v-if="!filteredOutline.length" class="p-2.5 text-11.5px text-text-3">
+          <div v-if="!filteredOutline.length" class="p-2.5 text-12px text-text-3">
             {{ navFilter ? t('console.noMatching') : t('console.noCommands') }}
           </div>
         </div>
@@ -716,7 +716,7 @@ const copyResponse = async () => {
         <!-- Editor Area -->
         <div id="editor-area" class="h-full flex flex-col overflow-hidden bg-bg">
           <div class="panel-header gap-2">
-            <span class="text-12.5px font-600 text-text-2 flex-1">console.es &nbsp;<span class="text-text-3 font-400 text-11.5px">· {{ t('console.commands', { n: outline.length }) }}</span></span>
+            <span class="text-12px font-600 text-text-2 flex-1">console.es &nbsp;<span class="text-text-3 font-400 text-11px">· {{ t('console.commands', { n: outline.length }) }}</span></span>
           </div>
 
           <div class="flex-1 relative overflow-hidden">
@@ -737,11 +737,11 @@ const copyResponse = async () => {
           <div class="panel-header justify-between">
             <span class="text-12px font-600 tracking-0.04em uppercase text-text-3">{{ t('console.response') }}</span>
             <div class="flex items-center gap-2">
-              <span v-if="isLoading" class="text-11.5px font-mono text-text-3 flex items-center gap-1.25">
+              <span v-if="isLoading" class="text-11px font-mono text-text-3 flex items-center gap-1.25">
                 <div class="w-3 h-3 i-lucide-loader animate-spin"></div>
                 {{ t('console.running') }}
               </span>
-              <span v-else-if="requestStatus" class="text-11.5px font-mono" :class="requestStatus < 400 ? 'text-green' : 'text-red'">
+              <span v-else-if="requestStatus" class="text-11px font-mono" :class="requestStatus < 400 ? 'text-green' : 'text-red'">
                 {{ requestStatus }} · {{ requestDuration }}ms
               </span>
               <button

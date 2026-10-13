@@ -823,22 +823,19 @@ watch(
       <div v-if="loading && indices.length === 0" class="dim" style="padding: 20px">{{ t('common.loading') }}</div>
     </div>
 
-    <!-- ===== 索引分页 ===== -->
-    <div v-if="view === 'index'" class="pager">
-      <span>{{ t('grid.pageInfoShort', { page: currentIndexPage, pages: indexPages }) }}</span>
-      <div class="grow"></div>
-      <select :value="indexPageSize" @change="indexPageSize = Number(($event.target as HTMLSelectElement).value)">
-        <option v-for="size in INDEX_PAGE_SIZES" :key="size" :value="size">{{ t('grid.perPage', { n: size }) }}</option>
-      </select>
-      <button :disabled="currentIndexPage <= 1" @click="changeIndexPage(-1)">{{ t('grid.prevPage') }}</button>
-      <button :disabled="currentIndexPage >= indexPages" @click="changeIndexPage(1)">{{ t('grid.nextPage') }}</button>
-    </div>
-
-    <!-- ===== status line ===== -->
+    <!-- ===== status line：状态信息与索引分页同处一行 ===== -->
     <div class="statusline">
       <span>{{ statusCount }}</span>
       <span>{{ statusHint }}</span>
       <span class="sp">{{ statusSum }}</span>
+      <div v-if="view === 'index'" class="pager">
+        <span>{{ t('grid.pageInfoShort', { page: currentIndexPage, pages: indexPages }) }}</span>
+        <select :value="indexPageSize" @change="indexPageSize = Number(($event.target as HTMLSelectElement).value)">
+          <option v-for="size in INDEX_PAGE_SIZES" :key="size" :value="size">{{ t('grid.perPage', { n: size }) }}</option>
+        </select>
+        <button :disabled="currentIndexPage <= 1" @click="changeIndexPage(-1)">{{ t('grid.prevPage') }}</button>
+        <button :disabled="currentIndexPage >= indexPages" @click="changeIndexPage(1)">{{ t('grid.nextPage') }}</button>
+      </div>
     </div>
   </div>
 </template>

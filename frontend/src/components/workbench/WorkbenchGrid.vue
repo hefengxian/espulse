@@ -33,23 +33,48 @@ const emit = defineEmits<{
 
 const isExpanded = (prefix: string) => props.expanded.includes(prefix)
 
+// 单行容量的分片方块数：16px 方块 + 2px 间隔，列宽再扣掉左右各 4px 内边距。
+// 索引视角节点列 86px → 4；未分配列 72px → 3；节点视角索引列 64px → 3。
+const NODE_CELL_CAP = 4
+const UNASSIGNED_CAP = 3
+const AXIS_CELL_CAP = 3
+
+// 超出单行容量的分片聚合成「+N」：既不让方块折行把行顶高，也不像原来那样静默丢信息
+type ShardView = { shown: EsShard[]; more: number; total: number }
+function splitShards(list: EsShard[], cap: number): ShardView {
+  if (list.length <= cap) return { shown: list, more: 0, total: list.length }
+  return { shown: list.slice(0, cap - 1), more: list.length - cap + 1, total: list.length }
+}
+
 // 索引视角的展示行：平铺时逐行索引；聚合时「组头 + （展开后的）子行」。
 // 统一成一条 v-for，避免组内子行与平铺行两份重复模板。
 type GridRow =
   | { kind: 'group'; group: WbGroup }
-  | { kind: 'index'; row: WbIndexRow; child: boolean }
+  | { kind: 'index'; row: WbIndexRow; child: boolean; cells: ShardView[]; unassigned: ShardView }
 
 const displayRows = computed<GridRow[]>(() => {
-  if (!props.grouped) return props.indexRows.map(row => ({ kind: 'index' as const, row, child: false }))
+  const build = (row: WbIndexRow, child: boolean): GridRow => ({
+    kind: 'index',
+    row,
+    child,
+    cells: row.cells.map(cell => splitShards(cell ?? [], NODE_CELL_CAP)),
+    unassigned: splitShards(row.unassigned, UNASSIGNED_CAP),
+  })
+  if (!props.grouped) return props.indexRows.map(row => build(row, false))
   const out: GridRow[] = []
   for (const group of props.groups) {
     out.push({ kind: 'group', group })
     if (props.expanded.includes(group.prefix)) {
-      for (const row of group.rows) out.push({ kind: 'index', row, child: true })
+      for (const row of group.rows) out.push(build(row, true))
     }
   }
   return out
 })
+
+// 节点视角：行 = 节点、列 = 索引，列更窄，单行只放得下 3 个方块
+const nodeCells = computed(() =>
+  props.nodeRows.map(row => row.cells.map(cell => splitShards(cell ?? [], AXIS_CELL_CAP))),
+)
 
 function sortArrow(key: SortKey): string {
   if (props.sortKey !== key) return ''
@@ -81,6 +106,34 @@ const healthClass = (h: string) => {
   const k = (h || '').toLowerCase()
   return k === 'green' || k === 'yellow' || k === 'red' ? k : 'green'
 }
+
+// 索引单元格只有一行，元信息必须极短：文档数以 k/M/B 简写、存储去掉空格与尾部单位字母，
+// 完整值放 title，避免长数字撑破 326px 的索引列。
+function fmtCount(value: string | number | undefined | null): string {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '—'
+  const unit = n >= 1e9 ? 'B' : n >= 1e6 ? 'M' : n >= 1e3 ? 'k' : ''
+  if (!unit) return String(n)
+  const scaled = n / (unit === 'B' ? 1e9 : unit === 'M' ? 1e6 : 1e3)
+  return `${scaled >= 100 ? Math.round(scaled) : scaled.toFixed(1)}${unit}`
+}
+
+function fmtStore(value: string | number | undefined | null): string {
+  const s = fmtBytes(value)
+  const [num, unit] = s.split(' ')
+  if (!unit) return s
+  const short = unit === 'B' ? unit : unit.slice(0, -1)
+  return `${num.endsWith('.0') ? num.slice(0, -2) : num}${short}`
+}
+
+// 非 open 索引（close / frozen）才需要显性提示；缺值按 open 处理，不占位
+const isClosed = (status: string | undefined) => (status || 'open').toLowerCase() !== 'open'
+
+const priRepTip = (pri: string | number, rep: string | number) =>
+  `${t('vitals.pri')} ${pri} / ${t('vitals.rep')} ${rep}`
+const docsTip = (value: string | number | undefined | null) => `${t('grid.docs')} ${fmtInt(value)}`
+const storeTip = (value: string | number | undefined | null) => `${t('grid.store')} ${fmtBytes(value)}`
+const moreTip = (n: number) => t('grid.moreShards', { n })
 </script>
 
 <template>
@@ -134,25 +187,20 @@ const healthClass = (h: string) => {
           <tr v-if="item.kind === 'group'" class="group" @click="emit('toggle-group-row', item.group.prefix)">
             <td class="frz index">
               <div class="ixcell">
-                <div class="ixline1">
-                  <span class="caret" :class="{ open: isExpanded(item.group.prefix) }">
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </span>
-                  <span class="hdot" :class="item.group.worst"></span>
-                  <span class="nm">{{ item.group.prefix }}*</span>
-                </div>
-                <!-- 第二行（状态 / 主副 / 文档 / 存储）暂时注释，评估单行密度 -->
-                <!-- <div class="ixline2">
-                  <span class="mono">{{ item.group.rows.length }}×</span>
-                  <span class="dotsep">·</span>
-                  <span>{{ t('vitals.pri') }}<b>{{ item.group.pri }}</b>/{{ t('vitals.rep') }}<b>{{ item.group.rep }}</b></span>
-                  <span class="dotsep">·</span>
-                  <span>{{ t('grid.docs') }}<b>{{ fmtInt(item.group.docs) }}</b></span>
-                  <span class="dotsep">·</span>
-                  <span>{{ t('grid.store') }}<b>{{ fmtBytes(item.group.store) }}</b></span>
-                </div> -->
+                <span class="caret" :class="{ open: isExpanded(item.group.prefix) }">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </span>
+                <span class="hdot" :class="item.group.worst"></span>
+                <span class="nm">{{ item.group.prefix }}*</span>
+                <!-- 元信息与索引行同处一行、右侧定宽成列；组头为汇总值，整体降一档 -->
+                <span class="ixmeta agg">
+                  <span class="ixm cnt">{{ item.group.rows.length }}×</span>
+                  <span class="ixm pr" :title="priRepTip(item.group.pri, item.group.rep)">{{ item.group.pri }}/{{ item.group.rep }}</span>
+                  <span class="ixm docs" :title="docsTip(item.group.docs)">{{ fmtCount(item.group.docs) }}</span>
+                  <span class="ixm store" :title="storeTip(item.group.store)">{{ fmtStore(item.group.store) }}</span>
+                </span>
               </div>
             </td>
             <td class="num dim">Σ</td>
@@ -165,37 +213,34 @@ const healthClass = (h: string) => {
           <tr v-else :class="{ child: item.child }">
             <td class="frz index">
               <div class="ixcell">
-                <div class="ixline1">
-                  <span class="hdot" :class="healthClass(item.row.index.health)"></span>
-                  <span class="nm" :title="item.row.index.index">{{ item.row.index.index }}</span>
-                </div>
-                <!-- 第二行（状态 / 主副 / 文档 / 存储）暂时注释，评估单行密度 -->
-                <!-- <div class="ixline2">
-                  <span class="mono" :class="`st-${item.row.index.status}`">{{ item.row.index.status }}</span>
-                  <span class="dotsep">·</span>
-                  <span>{{ t('vitals.pri') }}<b>{{ item.row.index.pri }}</b>/{{ t('vitals.rep') }}<b>{{ item.row.index.rep }}</b></span>
-                  <span class="dotsep">·</span>
-                  <span>{{ t('grid.docs') }}<b>{{ fmtInt(item.row.index['docs.count']) }}</b></span>
-                  <span class="dotsep">·</span>
-                  <span>{{ t('grid.store') }}<b>{{ fmtBytes(item.row.index['store.size']) }}</b></span>
-                </div> -->
+                <span class="hdot" :class="healthClass(item.row.index.health)"></span>
+                <span class="nm" :title="item.row.index.index">{{ item.row.index.index }}</span>
+                <!-- 状态常态不占位：只有 close / frozen 等异常态才冒出来 -->
+                <span v-if="isClosed(item.row.index.status)" class="ixst">{{ item.row.index.status }}</span>
+                <span class="ixmeta">
+                  <span class="ixm pr" :title="priRepTip(item.row.index.pri, item.row.index.rep)">{{ item.row.index.pri }}/{{ item.row.index.rep }}</span>
+                  <span class="ixm docs" :title="docsTip(item.row.index['docs.count'])">{{ fmtCount(item.row.index['docs.count']) }}</span>
+                  <span class="ixm store" :title="storeTip(item.row.index['store.size'])">{{ fmtStore(item.row.index['store.size']) }}</span>
+                </span>
               </div>
             </td>
             <td class="num mono">{{ fmtRate(item.row.index.index_rate) }}</td>
             <td class="num mono">{{ fmtRate(item.row.index.search_rate) }}</td>
-            <td v-for="(cell, ci) in item.row.cells" :key="ci" class="node">
-              <div v-if="cell && cell.length" class="shardcell">
-                <div v-for="(s, si) in cell.slice(0, 8)" :key="si" class="shard" :class="[shardState(s), s.prirep === 'p' ? '' : 'rep']" :title="shardTip(s)">
+            <td v-for="(cell, ci) in item.cells" :key="ci" class="node">
+              <div v-if="cell.total" class="shardcell">
+                <div v-for="(s, si) in cell.shown" :key="si" class="shard" :class="[shardState(s), s.prirep === 'p' ? '' : 'rep']" :title="shardTip(s)">
                   <span>{{ s.shard }}</span>
                 </div>
+                <div v-if="cell.more" class="shard more" :title="moreTip(cell.more)">+{{ cell.more }}</div>
               </div>
-              <span v-else class="dim" style="font-size: 9px">·</span>
+              <span v-else class="dim micro">·</span>
             </td>
             <td class="node">
-              <div v-if="item.row.unassigned.length" class="shardcell">
-                <span v-for="(s, si) in item.row.unassigned.slice(0, 8)" :key="si" class="shard un" :title="unassignedTip(s)">{{ s.shard }}</span>
+              <div v-if="item.unassigned.total" class="shardcell">
+                <span v-for="(s, si) in item.unassigned.shown" :key="si" class="shard un" :title="unassignedTip(s)">{{ s.shard }}</span>
+                <span v-if="item.unassigned.more" class="shard more" :title="moreTip(item.unassigned.more)">+{{ item.unassigned.more }}</span>
               </div>
-              <span v-else class="dim" style="font-size: 9px">·</span>
+              <span v-else class="dim micro">·</span>
             </td>
           </tr>
         </template>
@@ -247,12 +292,12 @@ const healthClass = (h: string) => {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="n in nodeRows" :key="n.name">
+        <tr v-for="(n, ni) in nodeRows" :key="n.name">
           <td class="frz">
             <div class="nodename">
               <span class="hdot" :class="n.master ? 'yellow' : 'green'"></span> {{ n.name }}
             </div>
-            <div class="dim" style="font-size: 9.5px;">{{ n.role }}</div>
+            <div class="dim micro">{{ n.role }}</div>
           </td>
           <td>{{ n.master ? '★' : '-' }}</td>
           <td class="num" :class="usageClass(n.heap, 85, 70)">{{ n.heap || '-' }}%</td>
@@ -261,11 +306,12 @@ const healthClass = (h: string) => {
           <td class="mono">{{ n.load1 || '-' }} / {{ n.load5 || '-' }} / {{ n.load15 || '-' }}</td>
           <td class="num mono">{{ n.shards ?? '-' }}</td>
           <td class="num mono dim">—</td>
-          <td v-for="(cell, ci) in n.cells" :key="ci" class="node">
-            <div v-if="cell && cell.length" class="shardcell">
-              <span v-for="(s, si) in cell.slice(0, 8)" :key="si" class="shard" :class="[shardState(s), s.prirep === 'p' ? '' : 'rep']" :title="shardTip(s)">{{ s.shard }}</span>
+          <td v-for="(cell, ci) in nodeCells[ni]" :key="ci" class="node">
+            <div v-if="cell.total" class="shardcell">
+              <span v-for="(s, si) in cell.shown" :key="si" class="shard" :class="[shardState(s), s.prirep === 'p' ? '' : 'rep']" :title="shardTip(s)">{{ s.shard }}</span>
+              <span v-if="cell.more" class="shard more" :title="moreTip(cell.more)">+{{ cell.more }}</span>
             </div>
-            <span v-else class="dim" style="font-size: 9px">·</span>
+            <span v-else class="dim micro">·</span>
           </td>
         </tr>
       </tbody>
