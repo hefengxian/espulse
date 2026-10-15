@@ -252,30 +252,6 @@ html.light .esp-wb {
   background: currentColor;
 }
 
-.esp-wb .fresh {
-  font-size: var(--fs-data);
-  color: var(--text-3);
-  font-family: var(--mono);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.esp-wb .live {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 7px var(--green);
-  animation: esp-wb-pulse 2s infinite;
-}
-
-.esp-wb .live.act {
-  background: var(--yellow);
-  box-shadow: 0 0 7px var(--yellow);
-}
-
 @keyframes esp-wb-pulse {
   0%,
   100% {
@@ -1557,6 +1533,42 @@ html.light .esp-wb {
 
 .esp-wb .statusline .sp {
   margin-left: auto;
+}
+
+/* 数据新鲜度是「被动提示」，常驻状态栏右端而不是顶栏 —— 顶栏是工作台与控制台共享的，
+   放那儿会让控制台也挂着一份没用的时间。状态栏在控制台模式下整体 visibility: hidden，
+   挪到这里就自然只在工作台出现（见 PRD §2.5）。 */
+.esp-wb .statusline .fresh {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+/* 新鲜度里的数字用定宽槽右对齐：1 位与 2 位（9→10）占同一格，
+   否则位数一变，整段文案就宽一个字符，把左边的分页器一起顶走 */
+.esp-wb .numslot {
+  display: inline-block;
+  min-width: 2ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.esp-wb .live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 7px var(--green);
+  animation: esp-wb-pulse 2s infinite;
+}
+
+.esp-wb .live.act {
+  background: var(--yellow);
+  box-shadow: 0 0 7px var(--yellow);
 }
 
 /* ---------- dev console 嵌入 ---------- */

@@ -16,15 +16,35 @@ export function ageMs(collectedAt: string | undefined | null, now: number): numb
   return Math.max(0, now - ms)
 }
 
+// durationParts 把时长拆成「数字 + 单位」。数字单独成段是为了让界面能用定宽槽渲染它 ——
+// 否则 9→10 这类位数变化会让整段文案宽一个字符，把旁边的元素一起顶走。
+export function durationParts(ms: number): { value: string; unit: string } {
+  const seconds = Math.round(ms / 1000)
+  if (seconds < 60) return { value: `${seconds}`, unit: '秒' }
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return { value: `${minutes}`, unit: '分钟' }
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return { value: `${hours}`, unit: '小时' }
+  return { value: `${Math.floor(hours / 24)}`, unit: '天' }
+}
+
 // formatDuration 把一段时长渲染成最大的一位单位。
 export function formatDuration(ms: number): string {
-  const seconds = Math.round(ms / 1000)
-  if (seconds < 60) return `${seconds} 秒`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes} 分钟`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时`
-  return `${Math.floor(hours / 24)} 天`
+  const { value, unit } = durationParts(ms)
+  return `${value} ${unit}`
+}
+
+// ageParts 是 formatAge 的可分段版本：拆成前缀 / 数字 / 单位，供需要数字定宽的界面使用。
+// 未采集（时间缺失或明显非法）时返回 null，退化文案由调用方决定。
+export function ageParts(
+  collectedAt: string | undefined | null,
+  now: number,
+  prefix = '更新于',
+): { prefix: string; value: string; unit: string } | null {
+  const ms = ageMs(collectedAt, now)
+  if (ms === null) return null
+  const { value, unit } = durationParts(ms)
+  return { prefix, value, unit: `${unit}前` }
 }
 
 // formatAge 渲染成「更新于 3 分钟前」这类文案；prefix 可换成「采集失败于」等。

@@ -7,7 +7,7 @@ import { overviewApi, type Overview } from '../api/overview'
 import { allocationApi, catalogApi, type AllocationEnable, type EsIndex, type EsShard } from '../api/catalog'
 import { useTheme } from '../composables/useTheme'
 import { useLocale } from '../composables/useLocale'
-import { formatAge } from '../utils/freshness'
+import { ageParts, NEVER_COLLECTED } from '../utils/freshness'
 import { fmtBytes, fmtInt } from '../utils/format'
 import ClusterSwitcher from '../components/ClusterSwitcher.vue'
 import WorkbenchGrid from '../components/workbench/WorkbenchGrid.vue'
@@ -495,7 +495,8 @@ const bandCollapsedWithActivity = computed(() => !bandShowActive.value && bandAc
 const now = ref(Date.now())
 let ticker: number | undefined
 let pollTimer: number | undefined
-const freshnessText = computed(() => formatAge(updatedAt.value, now.value, t('freshness.updated')))
+// 拆成「前缀 / 数字 / 单位」渲染，数字用定宽槽承载，避免位数变化把右侧元素顶来顶去
+const freshnessParts = computed(() => ageParts(updatedAt.value, now.value, t('freshness.updated')))
 
 const unreachable = computed(() => !!overview.value && overview.value.reachable === false)
 
@@ -585,10 +586,6 @@ watch(
         <div class="o" :class="{ on: bandShowActive }" @click="bandForce = 'recovering'">
           <span class="d" style="color: var(--yellow)"></span>{{ t('stateSw.recovering') }}
         </div>
-      </div>
-      <div class="fresh">
-        <span class="live" :class="{ act: bandActive }"></span>
-        <span v-if="bandActive">{{ t('freshness.recoveringSuffix') }}</span>{{ freshnessText }}
       </div>
       <div class="vsep"></div>
       <button class="iconbtn" :title="t('common.refresh')" :disabled="refreshing" @click="refresh">
@@ -702,7 +699,7 @@ watch(
           <span class="sep">·</span><span>{{ t('band.noUnassigned') }}</span>
           <span class="sep">·</span><span>{{ t('band.noUnhealthy') }}</span>
         </template>
-        <span class="ts">{{ freshnessText }}</span>
+        <span class="ts"><template v-if="freshnessParts">{{ freshnessParts.prefix }} <span class="numslot">{{ freshnessParts.value }}</span> {{ freshnessParts.unit }}</template><template v-else>{{ NEVER_COLLECTED }}</template></span>
       </div>
 
       <!-- 活动态 -->
@@ -714,7 +711,7 @@ watch(
             · {{ t('band.unassigned') }} <b>{{ unassignedTotal }}</b>
             · {{ t('band.nonGreen') }} <b>{{ unhealthyTotal }}</b>
           </span>
-          <span class="sp">{{ freshnessText }}</span>
+          <span class="sp"><template v-if="freshnessParts">{{ freshnessParts.prefix }} <span class="numslot">{{ freshnessParts.value }}</span> {{ freshnessParts.unit }}</template><template v-else>{{ NEVER_COLLECTED }}</template></span>
         </div>
         <div class="eb-cols">
           <section class="eb-sec">
@@ -823,7 +820,7 @@ watch(
       <div v-if="loading && indices.length === 0" class="dim" style="padding: 20px">{{ t('common.loading') }}</div>
     </div>
 
-    <!-- ===== status line：状态信息与索引分页同处一行 ===== -->
+    <!-- ===== status line：状态信息、索引分页、数据新鲜度同处一行 ===== -->
     <div class="statusline">
       <span>{{ statusCount }}</span>
       <span>{{ statusHint }}</span>
@@ -835,6 +832,10 @@ watch(
         </select>
         <button :disabled="currentIndexPage <= 1" @click="changeIndexPage(-1)">{{ t('grid.prevPage') }}</button>
         <button :disabled="currentIndexPage >= indexPages" @click="changeIndexPage(1)">{{ t('grid.nextPage') }}</button>
+      </div>
+      <div class="fresh">
+        <span class="live" :class="{ act: bandActive }"></span>
+        <span v-if="bandActive">{{ t('freshness.recoveringSuffix') }}</span><template v-if="freshnessParts">{{ freshnessParts.prefix }} <span class="numslot">{{ freshnessParts.value }}</span> {{ freshnessParts.unit }}</template><template v-else>{{ NEVER_COLLECTED }}</template>
       </div>
     </div>
   </div>
