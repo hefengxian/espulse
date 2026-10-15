@@ -579,14 +579,6 @@ watch(
         <span class="tab" :class="{ on: mode === 'console' }" @click="openConsole">{{ t('common.devConsole') }}</span>
       </nav>
       <div class="grow"></div>
-      <div class="stateSw" :title="t('stateSw.title')">
-        <div class="o" :class="{ on: !bandShowActive }" @click="bandForce = 'healthy'">
-          <span class="d" style="color: var(--green)"></span>{{ t('stateSw.healthy') }}
-        </div>
-        <div class="o" :class="{ on: bandShowActive }" @click="bandForce = 'recovering'">
-          <span class="d" style="color: var(--yellow)"></span>{{ t('stateSw.recovering') }}
-        </div>
-      </div>
       <div class="vsep"></div>
       <button class="iconbtn" :title="t('common.refresh')" :disabled="refreshing" @click="refresh">
         <div v-if="refreshing" class="i-lucide-loader-circle animate-spin" style="width: 14px; height: 14px"></div>
@@ -676,43 +668,53 @@ watch(
 
     <!-- ===== 活动区 ===== -->
     <div class="band" :class="{ on: bandShowActive }">
-      <!-- 空闲态：有活动但被强制收起时给出摘要，不隐藏问题 -->
-      <div class="idle">
-        <template v-if="unreachable || error">
-          <span class="ok" style="color: var(--red)">
-            {{ unreachable ? t('common.unreachable') : error }}
-          </span>
-        </template>
-        <template v-else-if="bandCollapsedWithActivity">
-          <span class="ok" style="color: var(--yellow)">
-            {{ t('band.recovering') }} <b>{{ relocatingShards.length }}</b>
-            · {{ t('band.unassigned') }} <b>{{ unassignedTotal }}</b>
-            · {{ t('band.nonGreen') }} <b>{{ unhealthyTotal }}</b>
-          </span>
-        </template>
-        <template v-else>
-          <span class="ok">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            {{ t('band.allOk') }}
-          </span>
-          <span class="sep">·</span><span>{{ t('band.noRecovery') }}</span>
-          <span class="sep">·</span><span>{{ t('band.noUnassigned') }}</span>
-          <span class="sep">·</span><span>{{ t('band.noUnhealthy') }}</span>
-        </template>
-        <span class="ts"><template v-if="freshnessParts">{{ freshnessParts.prefix }} <span class="numslot">{{ freshnessParts.value }}</span> {{ freshnessParts.unit }}</template><template v-else>{{ NEVER_COLLECTED }}</template></span>
+      <!-- 常驻头：左摘要随状态切换，右侧「健康 / 恢复」开关固定不动 -->
+      <div class="bandhead">
+        <div class="bsum">
+          <template v-if="!bandShowActive">
+            <template v-if="unreachable || error">
+              <span class="ok" style="color: var(--red)">
+                {{ unreachable ? t('common.unreachable') : error }}
+              </span>
+            </template>
+            <template v-else-if="bandCollapsedWithActivity">
+              <span class="ok" style="color: var(--yellow)">
+                {{ t('band.recovering') }} <b>{{ relocatingShards.length }}</b>
+                · {{ t('band.unassigned') }} <b>{{ unassignedTotal }}</b>
+                · {{ t('band.nonGreen') }} <b>{{ unhealthyTotal }}</b>
+              </span>
+            </template>
+            <template v-else>
+              <span class="ok">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                {{ t('band.allOk') }}
+              </span>
+              <span class="sep">·</span><span>{{ t('band.noRecovery') }}</span>
+              <span class="sep">·</span><span>{{ t('band.noUnassigned') }}</span>
+              <span class="sep">·</span><span>{{ t('band.noUnhealthy') }}</span>
+            </template>
+          </template>
+          <template v-else>
+            <span class="ld"></span><span class="ttl">{{ t('band.active') }}</span>
+            <span class="cnt">
+              {{ t('band.recovering') }} <b>{{ relocatingShards.length }}</b>
+              · {{ t('band.unassigned') }} <b>{{ unassignedTotal }}</b>
+              · {{ t('band.nonGreen') }} <b>{{ unhealthyTotal }}</b>
+            </span>
+          </template>
+        </div>
+        <div class="stateSw" :title="t('stateSw.title')">
+          <div class="o" :class="{ on: !bandShowActive }" @click="bandForce = 'healthy'">
+            <span class="d" style="color: var(--green)"></span>{{ t('stateSw.healthy') }}
+          </div>
+          <div class="o" :class="{ on: bandShowActive }" @click="bandForce = 'recovering'">
+            <span class="d" style="color: var(--yellow)"></span>{{ t('stateSw.recovering') }}
+          </div>
+        </div>
       </div>
 
-      <!-- 活动态 -->
+      <!-- 活动明细：仅展开态显示 -->
       <div class="active">
-        <div class="eb-head">
-          <span class="ld"></span><span class="ttl">{{ t('band.active') }}</span>
-          <span class="cnt">
-            {{ t('band.recovering') }} <b>{{ relocatingShards.length }}</b>
-            · {{ t('band.unassigned') }} <b>{{ unassignedTotal }}</b>
-            · {{ t('band.nonGreen') }} <b>{{ unhealthyTotal }}</b>
-          </span>
-          <span class="sp"><template v-if="freshnessParts">{{ freshnessParts.prefix }} <span class="numslot">{{ freshnessParts.value }}</span> {{ freshnessParts.unit }}</template><template v-else>{{ NEVER_COLLECTED }}</template></span>
-        </div>
         <div class="eb-cols">
           <section class="eb-sec">
             <h4>

@@ -87,7 +87,7 @@ html.light .esp-wb {
 :lang(zh) .esp-wb .vstat .k,
 :lang(zh) .esp-wb .wgrid thead th,
 :lang(zh) .esp-wb table.rt th,
-:lang(zh) .esp-wb .eb-head .ttl,
+:lang(zh) .esp-wb .bandhead .ttl,
 :lang(zh) .esp-wb .eb-sec > h4,
 :lang(zh) .esp-wb .psub,
 :lang(zh) .esp-wb .alloc .alloc-lbl {
@@ -212,44 +212,6 @@ html.light .esp-wb {
 
 .esp-wb .grow {
   flex: 1;
-}
-
-/* 顶栏：健康 / 恢复 场景切换（控制活动区的紧凑 / 展开） */
-.esp-wb .stateSw {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  height: 24px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  flex: 0 0 auto;
-}
-
-.esp-wb .stateSw .o {
-  font-size: var(--fs-ui);
-  font-weight: 600;
-  color: var(--text-3);
-  padding: 0 9px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  border-radius: 5px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.esp-wb .stateSw .o.on {
-  color: var(--text);
-  background: var(--bg-4);
-}
-
-.esp-wb .stateSw .o .d {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
 }
 
 @keyframes esp-wb-pulse {
@@ -551,20 +513,33 @@ html.light .esp-wb {
   overflow-y: auto;
 }
 
-.esp-wb .band .idle {
+/* 常驻头：收起 / 展开只换左侧摘要，右侧「健康 / 恢复」开关不移动 */
+.esp-wb .bandhead {
+  position: sticky;
+  top: 0;
+  z-index: 6;
   height: 30px;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   padding: 0 14px;
   font-size: var(--fs-ui);
   color: var(--text-3);
   font-family: var(--mono);
   white-space: nowrap;
+}
+
+/* 摘要限宽裁剪，长文案不会把右侧开关挤出视野 */
+.esp-wb .bandhead .bsum {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
   overflow: hidden;
 }
 
-.esp-wb .band .idle .ok {
+.esp-wb .bandhead .ok {
   color: var(--green);
   display: flex;
   align-items: center;
@@ -572,13 +547,76 @@ html.light .esp-wb {
   font-weight: 600;
 }
 
-.esp-wb .band .idle .sep {
+.esp-wb .bandhead .sep {
   color: var(--text-4);
 }
 
-.esp-wb .band .idle .ts {
-  margin-left: auto;
-  color: var(--text-4);
+.esp-wb .bandhead .ld {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: 0 0 9px var(--yellow);
+  animation: esp-wb-pulse 1.4s infinite;
+}
+
+.esp-wb .bandhead .ttl {
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--yellow);
+}
+
+.esp-wb .bandhead .cnt {
+  color: var(--text-2);
+}
+
+.esp-wb .bandhead .cnt b {
+  color: var(--text);
+}
+
+/* 健康 / 恢复场景切换：控制活动区的紧凑 / 展开（原型期用来对照两种数据场景） */
+.esp-wb .stateSw {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  height: 24px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+
+.esp-wb .stateSw .o {
+  font-size: var(--fs-ui);
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 0 9px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.esp-wb .stateSw .o.on {
+  color: var(--text);
+  background: var(--bg-4);
+}
+
+.esp-wb .stateSw .o .d {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* 展开态才需要底色 + 下边框，把滚动上来的明细与头分开；收起态保持与 band 同色 */
+.esp-wb .band.on .bandhead {
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
 }
 
 .esp-wb .band .active {
@@ -589,59 +627,8 @@ html.light .esp-wb {
   border-bottom-color: var(--border-2);
 }
 
-.esp-wb .band.on .idle {
-  display: none;
-}
-
 .esp-wb .band.on .active {
   display: block;
-}
-
-.esp-wb .eb-head {
-  position: sticky;
-  top: 0;
-  z-index: 6;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-2);
-}
-
-.esp-wb .eb-head .ld {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--yellow);
-  box-shadow: 0 0 9px var(--yellow);
-  animation: esp-wb-pulse 1.4s infinite;
-}
-
-.esp-wb .eb-head .ttl {
-  font-size: var(--fs-ui);
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--yellow);
-}
-
-.esp-wb .eb-head .cnt {
-  font-family: var(--mono);
-  font-size: var(--fs-data);
-  color: var(--text-2);
-}
-
-.esp-wb .eb-head .cnt b {
-  color: var(--text);
-}
-
-.esp-wb .eb-head .sp {
-  margin-left: auto;
-  font-family: var(--mono);
-  font-size: var(--fs-data);
-  color: var(--text-3);
 }
 
 .esp-wb .eb-cols {
