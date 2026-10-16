@@ -41,7 +41,6 @@ const indices = ref<EsIndex[]>([])
 const shards = ref<EsShard[]>([])
 const rateWindowMs = ref(0)
 const updatedAt = ref('')
-const loading = ref(false)
 const refreshing = ref(false)
 const error = ref('')
 
@@ -54,12 +53,18 @@ const NODE_PAGE_SIZE = 30
 // 索引视角分页：行数直接决定 DOM 规模，用分页把它钉死在每页固定行数
 const INDEX_PAGE_SIZES = [50, 100, 200]
 const INDEX_DEFAULT_PAGE_SIZE = 100
+// 骨架屏占位节点列数：仅为撑出网格的列节奏，与实际节点数无关（此时还拿不到数据）
+const SKEL_NODE_COLS = 4
 
-async function loadIndices(force: boolean) {
-  const id = clusterId.value
-  if (!id) return
+// 加载「代际」：每次发起加载自增，只有最新一代的结果允许落盘。
+// 切换集群 / 手动刷新 / 轮询都会开启新的一代，使在途的旧请求（典型是大集群 A 的慢响应）
+// 无法覆盖已经切过去的 B 集群数据。
+let loadSeq = 0
+
+// 纯取数：不读 clusterId.value、不写状态，由 loadAll 校验代际后统一落盘。
+// 否则切换发生在 await 期间时，会出现 overview=A / indices=B 的混合状态。
+async function fetchIndices(id: string, force: boolean): Promise<{ data: EsIndex[]; rateWindowMs: number }> {
   const first = await catalogApi.indices(id, { page: 1, pageSize: INDICES_PAGE_SIZE }, force)
-  rateWindowMs.value = first.rate_window_ms ?? 0
   const all = [...(first.data ?? [])]
   const pages = Math.min(Math.max(1, Math.ceil((first.total || 0) / INDICES_PAGE_SIZE)), MAX_INDICES_PAGES)
   if (pages > 1) {
@@ -70,27 +75,29 @@ async function loadIndices(force: boolean) {
     )
     for (const res of rest) all.push(...(res.data ?? []))
   }
-  indices.value = all
+  return { data: all, rateWindowMs: first.rate_window_ms ?? 0 }
 }
 
-async function loadAll(force = false, silent = false) {
+async function loadAll(force = false) {
   const id = clusterId.value
   if (!id) return
-  if (!silent) loading.value = true
+  const seq = ++loadSeq
   try {
     const [ov, shardRes] = await Promise.all([
       overviewApi.get(id, force),
       catalogApi.shards(id, force),
     ])
+    const idx = await fetchIndices(id, force)
+    // 代际不符：期间已发起新的加载，整批结果丢弃（连同 error 也不许回写）
+    if (seq !== loadSeq) return
     overview.value = ov
     shards.value = shardRes.data ?? []
+    indices.value = idx.data
+    rateWindowMs.value = idx.rateWindowMs
     updatedAt.value = ov.updated_at || shardRes.updated_at || ''
-    await loadIndices(force)
     error.value = ''
   } catch (e) {
-    error.value = e instanceof Error ? e.message : t('common.error')
-  } finally {
-    loading.value = false
+    if (seq === loadSeq) error.value = e instanceof Error ? e.message : t('common.error')
   }
 }
 
@@ -119,8 +126,11 @@ const allocationSaving = ref(false)
 async function loadAllocation() {
   const id = clusterId.value
   if (!id) return
+  const seq = loadSeq
   try {
-    allocation.value = await allocationApi.get(id)
+    const value = await allocationApi.get(id)
+    // 与数据同源：切集群后旧集群的响应不得写回，否则 B 的开关会显示 A 的值
+    if (seq === loadSeq) allocation.value = value
   } catch {
     // 读取失败保持 all，不打断页面
   }
@@ -129,13 +139,16 @@ async function loadAllocation() {
 async function changeAllocation(value: string) {
   const next = value as AllocationEnable
   if (next === allocation.value) return
+  const id = clusterId.value
+  const seq = loadSeq
   const previous = allocation.value
   allocation.value = next // 乐观更新，失败回滚
   allocationSaving.value = true
   try {
-    await allocationApi.set(clusterId.value, next)
+    await allocationApi.set(id, next)
   } catch {
-    allocation.value = previous
+    // 已切集群：页面上显示的是另一个集群的开关，回滚会写错对象
+    if (seq === loadSeq) allocation.value = previous
   } finally {
     allocationSaving.value = false
   }
@@ -500,6 +513,24 @@ const freshnessParts = computed(() => ageParts(updatedAt.value, now.value, t('fr
 
 const unreachable = computed(() => !!overview.value && overview.value.reachable === false)
 
+// ---------- 网格区状态 ----------
+// 「等待数据」与「确实没有数据」必须分开，否则两者都只是「一张空表」。
+const gridState = computed<'error' | 'skeleton' | 'empty' | 'ready'>(() => {
+  if (unreachable.value || error.value) return 'error'
+  if (!overview.value) return 'skeleton'
+  return filteredIndices.value.length === 0 ? 'empty' : 'ready'
+})
+
+// 空态文案：只要有任何过滤条件在起作用，就该说「没有匹配」而不是「暂无索引」
+const emptyText = computed(() =>
+  hideSystem.value || onlyProblems.value || !!search.value.trim()
+    ? t('grid.emptyNoIndex')
+    : t('grid.emptyNoIndexClean'),
+)
+
+// 无数据时指标一律降级为占位符，避免把「还没拿到数据」读成 0
+const shown = (value: string | number): string | number => (overview.value ? value : '—')
+
 // ---------- 状态栏 ----------
 const statusCount = computed(() =>
   `${t('status.totalIndices', { total: indices.value.length })} · ${t('status.showing', { n: indexRows.value.length })}`,
@@ -525,16 +556,25 @@ onMounted(async () => {
   }
   await loadAll()
   await loadAllocation()
-  pollTimer = window.setInterval(() => loadAll(true, true), 15000)
+  pollTimer = window.setInterval(() => loadAll(true), 15000)
 })
 
 onBeforeUnmount(() => {
+  loadSeq++ // 离场后到达的响应不再写回
   if (ticker) window.clearInterval(ticker)
   if (pollTimer) window.clearInterval(pollTimer)
 })
 
 watch(clusterId, (id) => {
   if (!id) return
+  // 作废在途请求并清空上一个集群的数据：宁可短暂空白，也不能让 B 的页面显示 A 的节点 / 分片
+  loadSeq++
+  overview.value = null
+  indices.value = []
+  shards.value = []
+  rateWindowMs.value = 0
+  updatedAt.value = ''
+  error.value = ''
   nodePage.value = 1
   indexPage.value = 1
   loadAll()
@@ -623,39 +663,43 @@ watch(
     </div>
 
     <!-- ===== vitals ===== -->
-    <div class="vitals">
+    <!-- 数据未到时整体降级为占位（.ph）：不摆 0 和 GREEN，否则会被读成「集群很健康」 -->
+    <div class="vitals" :class="{ ph: !overview }">
       <!-- 健康：状态字 + 索引健康环形 + active 占比（不再单画进度条，避免与环形重复） -->
       <div class="vgrp">
-        <span class="hchip" :style="{ color: `var(--${healthKey})`, background: `var(--${healthKey}-bg)`, border: `1px solid var(--${healthKey}-bd)` }">
-          <span class="pip"></span>{{ healthKey.toUpperCase() }}
+        <span
+          class="hchip"
+          :style="overview ? { color: `var(--${healthKey})`, background: `var(--${healthKey}-bg)`, border: `1px solid var(--${healthKey}-bd)` } : undefined"
+        >
+          <span class="pip"></span>{{ overview ? healthKey.toUpperCase() : '—' }}
         </span>
-        <div class="donut sm" :style="donutStyle" :title="t('vitals.healthTitle')"></div>
+        <div class="donut sm" :style="overview ? donutStyle : undefined" :title="t('vitals.healthTitle')"></div>
         <div class="vstat">
           <span class="k">{{ t('vitals.activeShards') }}</span>
-          <span class="v">{{ (overview?.health.active_shards_percent ?? 0).toFixed(1) }}<small>%</small></span>
+          <span class="v">{{ overview ? (overview.health.active_shards_percent ?? 0).toFixed(1) : '—' }}<small v-if="overview">%</small></span>
         </div>
       </div>
 
       <!-- 规模：数字等宽均分 -->
       <div class="vgrp vgfill">
-        <div class="vstat"><span class="k">{{ t('vitals.nodes') }}</span><span class="v">{{ counts.nodes }}</span></div>
-        <div class="vstat"><span class="k">{{ t('vitals.indices') }}</span><span class="v">{{ fmtInt(counts.indices) }}</span></div>
-        <div class="vstat"><span class="k">{{ t('vitals.primaryShards') }}</span><span class="v">{{ fmtInt(counts.pri) }}</span></div>
-        <div class="vstat"><span class="k">{{ t('vitals.totalShards') }}</span><span class="v">{{ fmtInt(counts.shards) }}</span></div>
-        <div class="vstat"><span class="k">{{ t('vitals.docs') }}</span><span class="v">{{ fmtInt(counts.docs) }}</span></div>
-        <div class="vstat"><span class="k">{{ t('vitals.store') }}</span><span class="v">{{ fmtBytes(counts.store) }}</span></div>
+        <div class="vstat"><span class="k">{{ t('vitals.nodes') }}</span><span class="v">{{ shown(counts.nodes) }}</span></div>
+        <div class="vstat"><span class="k">{{ t('vitals.indices') }}</span><span class="v">{{ shown(fmtInt(counts.indices)) }}</span></div>
+        <div class="vstat"><span class="k">{{ t('vitals.primaryShards') }}</span><span class="v">{{ shown(fmtInt(counts.pri)) }}</span></div>
+        <div class="vstat"><span class="k">{{ t('vitals.totalShards') }}</span><span class="v">{{ shown(fmtInt(counts.shards)) }}</span></div>
+        <div class="vstat"><span class="k">{{ t('vitals.docs') }}</span><span class="v">{{ shown(fmtInt(counts.docs)) }}</span></div>
+        <div class="vstat"><span class="k">{{ t('vitals.store') }}</span><span class="v">{{ shown(fmtBytes(counts.store)) }}</span></div>
       </div>
 
       <!-- 分片构成：一条堆叠条（按状态分色，实心=主 / 半透明=副本），图例即数字 -->
       <div class="vgrp vgcol vggrow" style="min-width: 280px">
-        <div class="vstat"><span class="k">{{ t('vitals.shardComposition') }}</span><span class="v">{{ fmtInt(shardTotal) }}</span></div>
+        <div class="vstat"><span class="k">{{ t('vitals.shardComposition') }}</span><span class="v">{{ shown(fmtInt(shardTotal)) }}</span></div>
         <div class="stack"><i v-for="(s, i) in shardBarSegments" :key="i" :style="s"></i></div>
         <div class="stackleg">
-          <span><i style="background: var(--green)"></i>{{ t('toolbar.legendPri') }} <b>{{ fmtInt(shardTotals.pri) }}</b></span>
-          <span><i style="background: var(--green); opacity: .42"></i>{{ t('toolbar.legendRep') }} <b>{{ fmtInt(shardTotals.rep) }}</b></span>
-          <span><i style="background: var(--yellow)"></i>{{ t('toolbar.legendRelo') }} <b>{{ shardTotals.byState.relocating }}</b></span>
-          <span><i style="background: var(--blue)"></i>{{ t('toolbar.legendInit') }} <b>{{ shardTotals.byState.initializing }}</b></span>
-          <span><i style="background: repeating-linear-gradient(45deg, var(--red), var(--red) 2px, transparent 2px, transparent 4px)"></i>{{ t('toolbar.legendUn') }} <b>{{ fmtInt(shardTotals.byState.unassigned) }}</b></span>
+          <span><i style="background: var(--green)"></i>{{ t('toolbar.legendPri') }} <b>{{ shown(fmtInt(shardTotals.pri)) }}</b></span>
+          <span><i style="background: var(--green); opacity: .42"></i>{{ t('toolbar.legendRep') }} <b>{{ shown(fmtInt(shardTotals.rep)) }}</b></span>
+          <span><i style="background: var(--yellow)"></i>{{ t('toolbar.legendRelo') }} <b>{{ shown(shardTotals.byState.relocating) }}</b></span>
+          <span><i style="background: var(--blue)"></i>{{ t('toolbar.legendInit') }} <b>{{ shown(shardTotals.byState.initializing) }}</b></span>
+          <span><i style="background: repeating-linear-gradient(45deg, var(--red), var(--red) 2px, transparent 2px, transparent 4px)"></i>{{ t('toolbar.legendUn') }} <b>{{ shown(fmtInt(shardTotals.byState.unassigned)) }}</b></span>
         </div>
       </div>
 
@@ -676,6 +720,10 @@ watch(
               <span class="ok" style="color: var(--red)">
                 {{ unreachable ? t('common.unreachable') : error }}
               </span>
+            </template>
+            <template v-else-if="!overview">
+              <!-- 数据未到：此时「全部正常」是假的，不能照常显示绿色结论 -->
+              <span class="ok" style="color: var(--text-3)">{{ t('common.loading') }}</span>
             </template>
             <template v-else-if="bandCollapsedWithActivity">
               <span class="ok" style="color: var(--yellow)">
@@ -801,6 +849,7 @@ watch(
     <!-- ===== 主网格 ===== -->
     <div class="gridwrap">
       <WorkbenchGrid
+        v-if="gridState === 'ready'"
         :view="view"
         :node-columns="nodeColumns"
         :index-rows="indexRows"
@@ -819,7 +868,17 @@ watch(
         @toggle-group-row="toggleGroupRow"
         @node-page="changeNodePage"
       />
-      <div v-if="loading && indices.length === 0" class="dim" style="padding: 20px">{{ t('common.loading') }}</div>
+      <!-- 骨架屏：沿用真实网格的列宽节奏，数据到位后不跳布局 -->
+      <div v-else-if="gridState === 'skeleton'" class="gridskel">
+        <div v-for="r in 9" :key="r" class="skrow">
+          <span class="sk w-name"></span>
+          <span class="sk w-num"></span>
+          <span class="sk w-num"></span>
+          <span v-for="c in SKEL_NODE_COLS" :key="c" class="sk w-cell"></span>
+        </div>
+      </div>
+      <div v-else-if="gridState === 'empty'" class="gridmsg">{{ emptyText }}</div>
+      <div v-else class="gridmsg err">{{ unreachable ? t('common.unreachable') : error }}</div>
     </div>
 
     <!-- ===== status line：状态信息、索引分页、数据新鲜度同处一行 ===== -->
