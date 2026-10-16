@@ -1287,20 +1287,22 @@ html.light .esp-wb {
   padding-right: 0;
 }
 
-/* 三列定宽：让「主/副 · 文档 · 存储」在组头行与索引行之间也对齐成列 */
+/* 三列定宽：让「主/副 · 文档 · 存储」在组头行与子索引行之间对齐成列。宽度按 90% 场景取值：
+   字号 10px、等宽 0.6em → 6px/字；中列边饰 = 1px 描边 + 7px 双侧内边距 = 15px，末列无右内边距 = 8px。
+   取值上限 pr 4 字（12/1）、docs 5 字（45.6k）、store 6 字（45.6mb），各留 1px 防亚像素溢出。 */
 .esp-wb .ixm.pr {
-  width: 48px;
+  width: 40px; /* 4×6 + 15 + 1 */
 }
 
 .esp-wb .ixm.docs {
-  width: 42px;
+  width: 46px; /* 5×6 + 15 + 1 */
 }
 
 .esp-wb .ixm.store {
-  width: 38px;
+  width: 45px; /* 6×6 + 8 + 1 */
 }
 
-/* 组头条数标记：贴在最左，不参与上面三列的对齐 */
+/* 组头条数标记：贴在最左 */
 .esp-wb .ixm.cnt {
   color: var(--text-3);
 }
