@@ -306,6 +306,17 @@ html.light .esp-wb {
   overflow-y: hidden;
 }
 
+/* 数据未到：整体占位态，避免把 0 与默认 GREEN 当成真实结论 */
+.esp-wb .vitals.ph .hchip {
+  color: var(--text-4);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+}
+
+.esp-wb .vitals.ph .donut {
+  background: var(--bg-4);
+}
+
 .esp-wb .vgrp {
   display: flex;
   align-items: center;
@@ -969,6 +980,60 @@ html.light .esp-wb {
   min-height: 0;
   overflow: auto;
   background: var(--bg);
+}
+
+/* 骨架屏：只做列宽节奏，不复刻真实表格；行距贴近 .wgrid 行高，数据到位后不跳版 */
+.esp-wb .gridskel {
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.esp-wb .gridskel .skrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.esp-wb .gridskel .sk {
+  height: 10px;
+  border-radius: 4px;
+  background: var(--bg-4);
+  animation: esp-wb-skel 1.4s ease-in-out infinite;
+}
+
+.esp-wb .gridskel .w-name {
+  width: 300px;
+}
+
+.esp-wb .gridskel .w-num {
+  width: 56px;
+}
+
+.esp-wb .gridskel .w-cell {
+  width: 74px;
+}
+
+@keyframes esp-wb-skel {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 空态 / 错误：网格区整体交给占位文案，不留一张空表 */
+.esp-wb .gridmsg {
+  padding: 26px 20px;
+  font-size: var(--fs-ui);
+  color: var(--text-3);
+}
+
+.esp-wb .gridmsg.err {
+  color: var(--red);
 }
 
 .esp-wb table.wgrid {
