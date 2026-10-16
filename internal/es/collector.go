@@ -44,6 +44,8 @@ const (
 	KindShards Kind = "shards"
 	// KindAliases 是索引别名列表（_cat/aliases）。
 	KindAliases Kind = "aliases"
+	// KindRecovery 是正在进行的恢复（_recovery?active_only=true）。
+	KindRecovery Kind = "recovery"
 )
 
 // kindSpec 描述一类数据的刷新间隔与获取方式。
@@ -67,6 +69,8 @@ var kindSpecs = map[Kind]kindSpec{
 	KindIndices: {interval: 5 * time.Second, fetch: fetchIndices, decode: decodeAs[IndexList], decorate: decorateIndexRates},
 	KindShards:  {interval: 5 * time.Second, fetch: fetchShards, decode: decodeAs[[]Shard]},
 	KindAliases: {interval: 5 * time.Second, fetch: fetchAliases, decode: decodeAs[[]Alias]},
+	// 恢复数据空闲时是空列表，落库后冷启动仍能先画出上次那批恢复，再由首轮采集纠正。
+	KindRecovery: {interval: 5 * time.Second, fetch: fetchRecovery, decode: decodeAs[[]Recovery]},
 }
 
 // decodeAs 返回一个把 JSON 解析为 T 的解码函数。

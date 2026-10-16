@@ -62,8 +62,8 @@
 
 ### 平台能力
 
-- [ ] **`_recovery` 接口未实现（后端）**：指标条的「恢复吞吐 / 剩余量」与「恢复中」列表的进度明细现在都是留白（前端已放占位文案：`vitals.recoveryPending` / `band.recoveryPlaceholder`）。需要后端接入 `_cat/recovery?format=json`（或 `_recovery?active_only=true`）作为新的采集 kind，落 `GET /api/clusters/:id/recovery`，产出每个分片的字节 / 文件 / translog 进度与耗时，供指标条与「恢复中」列表消费（前端接上由下一条负责）
-- [ ] `_cat/recovery` 接入：补上指标条的「恢复吞吐 / 剩余量」（当前留白）
+- [x] **分片恢复进度（`_recovery`）**：新增采集 kind `recovery`（`_recovery?active_only=true`，5s，共享缓存 / 单飞去重 / 退避 / 落库与其他 kind 同机制）与 `GET /api/clusters/:id/recovery`，响应拍平成「一行一个分片副本」。指标条的「恢复吞吐 / 剩余」由留白改为真实值（吞吐 = Σ分片平均速率，剩余 = 按该吞吐的 ETA）；活动区恢复表由 5 列扩到 8 列 —— 分片复用网格那套方块（实心 = 主 / 描边 = 副），加阶段 / 源 → 目标 / 文件 · 字节 · translog 进度 / 耗时；恢复类型不占列（移入方块 title），表按耗时降序、不截断行数，进度条的绝对值放 title；计数与列表同源（不再用 `_cat/shards` 另拼一份）。不做「卡住」阈值判定、不做完成留痕 —— 该接口只回答「此刻」
+- [x] **指标条补集群版本**：`overview` 响应增加 `version`，叠在健康胶囊正上方并居中 —— 版本此前只在 Hub 卡片上出现，工作台看不到；不用集群列表里那份 `status.version`，因为它只在挂载时拉一次、不跟随轮询。
 - [ ] 配置文件预置集群
 - [ ] 集群凭据 AES-GCM 加密存储
 - [ ] 多实例部署下的跨进程采集去重（见 PRD §10）

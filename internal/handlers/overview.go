@@ -73,8 +73,11 @@ type overviewProblems struct {
 }
 
 type overviewResponse struct {
-	Reachable     bool             `json:"reachable"`
-	Error         string           `json:"error,omitempty"`
+	Reachable bool   `json:"reachable"`
+	Error     string `json:"error,omitempty"`
+	// Version 是集群身份（静态），指标条把它挂在健康胶囊下方；
+	// 取自同一份 status 快照，因此指标条不必再去读另一份只在挂载时拉取的集群列表。
+	Version       string           `json:"version,omitempty"`
 	Health        overviewHealth   `json:"health"`
 	Counts        overviewCounts   `json:"counts"`
 	Nodes         []overviewNode   `json:"nodes"`
@@ -132,6 +135,7 @@ func GetOverview(c *gin.Context) {
 
 	resp := overviewResponse{
 		Reachable:     true,
+		Version:       status.Version,
 		NodesLoaded:   nodesLoaded,
 		IndicesLoaded: indicesLoaded,
 		ShardsLoaded:  shardsLoaded,

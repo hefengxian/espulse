@@ -52,6 +52,28 @@ export interface CatalogResponse<T> {
   updated_at: string
 }
 
+// 一个正在恢复的分片副本（_recovery?active_only=true 的拍平行）。
+// 百分比不取 ES 的字段（6.x 给的是 "87.1%" 字符串），由展示层按字节 / 文件 / translog 自算。
+export interface EsRecovery {
+  index: string
+  shard: number
+  primary: boolean
+  type: string
+  stage: string
+  // 本地恢复（EXISTING_STORE）没有来源节点
+  source?: string
+  target?: string
+  files_recovered: number
+  files_total: number
+  bytes_recovered: number
+  bytes_total: number
+  // translog_total 为 0 表示这一步没有工作量
+  translog_recovered: number
+  translog_total: number
+  start_time_ms: number
+  elapsed_ms: number
+}
+
 export interface IndicesQuery {
   search?: string
   health?: string
@@ -106,6 +128,9 @@ export const catalogApi = {
   // 别名数量有上界，一次返回全量，不分页
   aliases: (clusterId: string, refresh = false) =>
     getJson<CatalogResponse<EsAlias>>(`/api/clusters/${clusterId}/aliases${withRefresh(refresh)}`),
+  // 正在进行的恢复；空闲时 data 为空数组
+  recovery: (clusterId: string, refresh = false) =>
+    getJson<CatalogResponse<EsRecovery>>(`/api/clusters/${clusterId}/recovery${withRefresh(refresh)}`),
 }
 
 // ---------- 分片分配开关 ----------

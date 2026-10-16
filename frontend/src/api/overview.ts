@@ -60,6 +60,8 @@ export interface OverviewProblems {
 export interface Overview {
   reachable: boolean
   error?: string
+  // 集群版本（静态）：指标条挂在健康胶囊下方；未采集到时缺省
+  version?: string
   health: OverviewHealth
   counts: OverviewCounts
   nodes: OverviewNode[]

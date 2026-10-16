@@ -25,6 +25,7 @@ func SetupRouter() *gin.Engine {
 			clusters.GET("/:id/indices", handlers.ListIndices)
 			clusters.GET("/:id/shards", handlers.ListShards)
 			clusters.GET("/:id/aliases", handlers.ListAliases)
+			clusters.GET("/:id/recovery", handlers.ListRecovery)
 		}
 
 		// Dev Console 的通用 ES 代理：固定 POST + JSON 信封 {path, method, body}

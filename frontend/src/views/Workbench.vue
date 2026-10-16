@@ -4,11 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useClusterStore } from '../stores/cluster'
 import { overviewApi, type Overview } from '../api/overview'
-import { allocationApi, catalogApi, type AllocationEnable, type EsIndex, type EsShard } from '../api/catalog'
+import { allocationApi, catalogApi, type AllocationEnable, type EsIndex, type EsRecovery, type EsShard } from '../api/catalog'
 import { useTheme } from '../composables/useTheme'
 import { useLocale } from '../composables/useLocale'
 import { ageParts, NEVER_COLLECTED } from '../utils/freshness'
-import { fmtBytes, fmtInt } from '../utils/format'
+import { fmtBytes, fmtDuration, fmtInt } from '../utils/format'
 import ClusterSwitcher from '../components/ClusterSwitcher.vue'
 import WorkbenchGrid from '../components/workbench/WorkbenchGrid.vue'
 import WorkbenchConsole from '../components/workbench/WorkbenchConsole.vue'
@@ -39,6 +39,7 @@ const clusterId = computed(() => route.params.id as string)
 const overview = ref<Overview | null>(null)
 const indices = ref<EsIndex[]>([])
 const shards = ref<EsShard[]>([])
+const recoveries = ref<EsRecovery[]>([])
 const rateWindowMs = ref(0)
 const updatedAt = ref('')
 const refreshing = ref(false)
@@ -83,9 +84,10 @@ async function loadAll(force = false) {
   if (!id) return
   const seq = ++loadSeq
   try {
-    const [ov, shardRes] = await Promise.all([
+    const [ov, shardRes, recRes] = await Promise.all([
       overviewApi.get(id, force),
       catalogApi.shards(id, force),
+      catalogApi.recovery(id, force),
     ])
     const idx = await fetchIndices(id, force)
     // 代际不符：期间已发起新的加载，整批结果丢弃（连同 error 也不许回写）
@@ -93,6 +95,7 @@ async function loadAll(force = false) {
     overview.value = ov
     shards.value = shardRes.data ?? []
     indices.value = idx.data
+    recoveries.value = recRes.data ?? []
     rateWindowMs.value = idx.rateWindowMs
     updatedAt.value = ov.updated_at || shardRes.updated_at || ''
     error.value = ''
@@ -479,21 +482,78 @@ const shardBarSegments = computed(() => {
   return out
 })
 
-// ---------- 活动区 ----------
-const relocatingShards = computed(() =>
-  shards.value.filter(s => {
-    const k = (s.state || '').toUpperCase()
-    return k === 'RELOCATING' || k === 'INITIALIZING'
-  }),
+// ---------- 活动区 · 恢复（同时供指标条的吞吐 / 剩余） ----------
+// total 为 0 表示这一步没有工作量（如本地恢复的 translog）：显示 "—"，而不是假的 100%
+function recoveryPct(done: number, total: number): number | null {
+  if (!total || total <= 0) return null
+  return Math.max(0, Math.min(100, Math.round((done / total) * 100)))
+}
+
+// 按已耗时降序：恢复是瞬时状态，最该先看一眼的是「耗了很久还没完」的那些，
+// 不设阈值去猜「卡住」—— 多慢算慢是集群自己的事，排序把判断权交回给看图的人。
+// 也不截断行数：没人恢复时这张表本来就是空的，真有几十上百条时它才是有价值的时刻；
+// 活动区本身有 40vh 上限并内部滚动，行多只是多滚两下。
+const recoveryRows = computed(() =>
+  recoveries.value
+    .map(r => {
+      const bytesPct = recoveryPct(r.bytes_recovered, r.bytes_total)
+      return {
+        r,
+        bytesPct,
+        filesPct: recoveryPct(r.files_recovered, r.files_total),
+        translogPct: recoveryPct(r.translog_recovered, r.translog_total),
+        // 进度条只画「快慢」，具体量级放进 title：表格要保住密度，
+        // 绝对值是按需查看的信息，不值得为它把每一行撑成两行高。
+        filesText: r.files_total ? `${fmtInt(r.files_recovered)} / ${fmtInt(r.files_total)}` : '',
+        bytesText: r.bytes_total ? `${fmtBytes(r.bytes_recovered)} / ${fmtBytes(r.bytes_total)}` : '',
+        translogText: r.translog_total ? `${fmtInt(r.translog_recovered)} / ${fmtInt(r.translog_total)}` : '',
+      }
+    })
+    .sort((a, b) => b.r.elapsed_ms - a.r.elapsed_ms),
 )
 
+// 吞吐 = Σ(单个分片的已恢复字节 / 它的耗时)，即各分片平均速率之和：
+// 并行恢复时这才是真实的总吞吐（改用 Σ字节 / Σ耗时 会随并行度被稀释）。
+// 一次快照即可算出，不需要像索引速率那样维护样本环；代价是它对「先快后停」的恢复不敏感，
+// 判断某个恢复是否停住交给按耗时降序的表与它自己的进度（见 PRD §6.1 活动区）。
+const recoverySummary = computed(() => {
+  const rows = recoveries.value
+  if (!rows.length) return null
+  let bytesTotal = 0
+  let bytesRecovered = 0
+  let throughput = 0
+  for (const r of rows) {
+    bytesTotal += r.bytes_total
+    bytesRecovered += r.bytes_recovered
+    if (r.elapsed_ms > 0) throughput += (r.bytes_recovered / r.elapsed_ms) * 1000
+  }
+  const remaining = Math.max(0, bytesTotal - bytesRecovered)
+  return {
+    bytesTotal,
+    bytesRecovered,
+    remaining,
+    percent: recoveryPct(bytesRecovered, bytesTotal) ?? 0,
+    throughput,
+    etaMs: throughput > 0 ? (remaining / throughput) * 1000 : null,
+  }
+})
+
+// 剩余 = 按当前总吞吐把剩下的字节跑完还要多久；吞吐为 0（全卡住 / 尚未开始搬字节）时留空
+const recoveryEta = computed(() =>
+  recoverySummary.value?.etaMs != null ? `~${fmtDuration(recoverySummary.value.etaMs)}` : null,
+)
+
+// ---------- 活动区 · 问题 ----------
 const unassignedList = computed(() => overview.value?.problems?.unassigned_shards ?? [])
 const unhealthyList = computed(() => overview.value?.problems?.unhealthy_indices ?? [])
 const unassignedTotal = computed(() => overview.value?.problems?.unassigned_shards_total ?? shardTotals.value.byState.unassigned)
 const unhealthyTotal = computed(() => overview.value?.problems?.unhealthy_indices_total ?? 0)
 
+// 活动区是否展开：恢复与问题任一非空即为「活动」。
+// 恢复一侧以 _recovery 为准（表头计数、表格、指标条吞吐都同源），不再用 _cat/shards 的
+// RELOCATING / INITIALIZING 拼一份 —— 两处口径不同会出现「计数 3、表格空」的矛盾。
 const bandActive = computed(() =>
-  relocatingShards.value.length > 0 || unassignedTotal.value > 0 || unhealthyTotal.value > 0,
+  recoveryRows.value.length > 0 || unassignedTotal.value > 0 || unhealthyTotal.value > 0,
 )
 
 // 顶栏「健康 / 恢复」：默认跟随真实状态；用户点击后手动指定活动区展示模式。
@@ -572,6 +632,7 @@ watch(clusterId, (id) => {
   overview.value = null
   indices.value = []
   shards.value = []
+  recoveries.value = []
   rateWindowMs.value = 0
   updatedAt.value = ''
   error.value = ''
@@ -667,12 +728,20 @@ watch(
     <div class="vitals" :class="{ ph: !overview }">
       <!-- 健康：状态字 + 索引健康环形 + active 占比（不再单画进度条，避免与环形重复） -->
       <div class="vgrp">
-        <span
-          class="hchip"
-          :style="overview ? { color: `var(--${healthKey})`, background: `var(--${healthKey}-bg)`, border: `1px solid var(--${healthKey}-bd)` } : undefined"
-        >
-          <span class="pip"></span>{{ overview ? healthKey.toUpperCase() : '—' }}
-        </span>
+        <!-- 版本是集群身份（静态），叠在胶囊上方并居中，借这一格已有的竖向空间，不新占横向位置 -->
+        <div class="vstack">
+          <span
+            v-if="overview?.version"
+            class="vver"
+            :title="t('vitals.versionTitle', { version: overview.version })"
+          >{{ overview.version }}</span>
+          <span
+            class="hchip"
+            :style="overview ? { color: `var(--${healthKey})`, background: `var(--${healthKey}-bg)`, border: `1px solid var(--${healthKey}-bd)` } : undefined"
+          >
+            <span class="pip"></span>{{ overview ? healthKey.toUpperCase() : '—' }}
+          </span>
+        </div>
         <div class="donut sm" :style="overview ? donutStyle : undefined" :title="t('vitals.healthTitle')"></div>
         <div class="vstat">
           <span class="k">{{ t('vitals.activeShards') }}</span>
@@ -703,10 +772,25 @@ watch(
         </div>
       </div>
 
-      <!-- 恢复：recovery API 未实现，留白 -->
+      <!-- 恢复：吞吐 = Σ分片平均速率，剩余 = 按该吞吐跑完剩余字节的 ETA。
+           空闲时留空而不摆 0 —— 0 会被读成「恢复停滞」 -->
       <div class="vgrp">
-        <div class="vstat"><span class="k">{{ t('vitals.recoveryThroughput') }}</span><span class="v dim" :title="t('vitals.recoveryPending')">—</span></div>
-        <div class="vstat"><span class="k">{{ t('vitals.remaining') }}</span><span class="v dim" :title="t('vitals.recoveryPending')">—</span></div>
+        <div class="vstat">
+          <span class="k">{{ t('vitals.recoveryThroughput') }}</span>
+          <span
+            class="v"
+            :class="{ dim: !recoverySummary }"
+            :title="recoverySummary ? t('vitals.recoveryProgress', { done: fmtBytes(recoverySummary.bytesRecovered), total: fmtBytes(recoverySummary.bytesTotal) }) : undefined"
+          >{{ recoverySummary ? `${fmtBytes(recoverySummary.throughput)}/s` : '—' }}</span>
+        </div>
+        <div class="vstat">
+          <span class="k">{{ t('vitals.remaining') }}</span>
+          <span
+            class="v"
+            :class="{ dim: !recoveryEta }"
+            :title="recoverySummary ? t('vitals.recoveryLeft', { size: fmtBytes(recoverySummary.remaining) }) : undefined"
+          >{{ recoveryEta ?? '—' }}</span>
+        </div>
       </div>
     </div>
 
@@ -727,7 +811,7 @@ watch(
             </template>
             <template v-else-if="bandCollapsedWithActivity">
               <span class="ok" style="color: var(--yellow)">
-                {{ t('band.recovering') }} <b>{{ relocatingShards.length }}</b>
+                {{ t('band.recovering') }} <b>{{ recoveryRows.length }}</b>
                 · {{ t('band.unassigned') }} <b>{{ unassignedTotal }}</b>
                 · {{ t('band.nonGreen') }} <b>{{ unhealthyTotal }}</b>
               </span>
@@ -743,11 +827,15 @@ watch(
             </template>
           </template>
           <template v-else>
-            <span class="ld"></span><span class="ttl">{{ t('band.active') }}</span>
             <span class="cnt">
-              {{ t('band.recovering') }} <b>{{ relocatingShards.length }}</b>
+              {{ t('band.recovering') }} <b>{{ recoveryRows.length }}</b>
               · {{ t('band.unassigned') }} <b>{{ unassignedTotal }}</b>
               · {{ t('band.nonGreen') }} <b>{{ unhealthyTotal }}</b>
+            </span>
+            <!-- 恢复规模：总量与平均进度。吞吐 / 剩余不放这里（指标条已有），避免同屏两处重复 -->
+            <span v-if="recoverySummary" class="cnt" style="color: var(--text-3)">
+              · {{ t('band.recoveryTotal', { size: fmtBytes(recoverySummary.bytesTotal) }) }}
+              · {{ t('band.recoveryAvg', { pct: recoverySummary.percent }) }}
             </span>
           </template>
         </div>
@@ -766,37 +854,48 @@ watch(
         <div class="eb-cols">
           <section class="eb-sec">
             <h4>
-              {{ t('band.shardRecovery') }} <span class="n">{{ relocatingShards.length }}</span>
+              {{ t('band.shardRecovery') }} <span class="n">{{ recoveryRows.length }}</span>
               <span class="hint">{{ t('band.recoveryHint') }}</span>
             </h4>
             <table class="rt">
               <colgroup>
-                <col style="width: 190px" /><col style="width: 60px" /><col style="width: 60px" />
-                <col style="width: 110px" /><col style="width: 160px" />
+                <col style="width: 150px" /><col style="width: 46px" />
+                <col style="width: 60px" /><col style="width: 140px" />
+                <col style="width: 86px" /><col style="width: 96px" /><col style="width: 86px" />
+                <col style="width: 52px" />
               </colgroup>
               <thead>
                 <tr>
                   <th>{{ t('grid.index') }}</th><th>{{ t('grid.priRep') }}</th>
-                  <th>{{ t('grid.status') }}</th><th>{{ t('vitals.nodes') }}</th><th>{{ t('grid.reason') }}</th>
+                  <th>{{ t('band.recStage') }}</th><th>{{ t('band.recFromTo') }}</th><th>{{ t('band.recFiles') }}</th>
+                  <th>{{ t('band.recBytes') }}</th><th>{{ t('band.recTranslog') }}</th><th>{{ t('band.recElapsed') }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(s, i) in relocatingShards.slice(0, 12)" :key="i">
-                  <td class="ix" @click="filterToIndex(s.index)" :title="s.index">{{ s.index }}</td>
-                  <td>{{ s.prirep === 'p' ? 'P' : 'R' }}{{ s.shard }}</td>
-                  <td class="stage" :class="{ index: (s.state || '').toUpperCase() === 'RELOCATING' }">{{ (s.state || '').toUpperCase() }}</td>
-                  <td><span class="dim">{{ s.node || '-' }}</span></td>
-                  <td class="dim">{{ s['unassigned.reason'] || '-' }}</td>
+                <tr v-for="(row, i) in recoveryRows" :key="i">
+                  <td class="ix" @click="filterToIndex(row.r.index)" :title="row.r.index">{{ row.r.index }}</td>
+                  <td>
+                    <!-- 复用网格那套分片方块：实心 = 主、描边 = 副，编号写在方块里。
+                         类型（PEER / SNAPSHOT / EXISTING_STORE）放 title —— 它多数时候是 PEER，
+                         只有节点重启 / 快照恢复时才是有解释力的信息 -->
+                    <span
+                      class="shard rec"
+                      :class="{ rep: !row.r.primary }"
+                      :title="`${row.r.primary ? 'P' : 'R'}${row.r.shard} · ${row.r.type}`"
+                    >{{ row.r.shard }}</span>
+                  </td>
+                  <td class="stage" :class="row.r.stage.toLowerCase()">{{ row.r.stage }}</td>
+                  <td><span class="dim">{{ row.r.source || '-' }}</span><span class="arrow">→</span>{{ row.r.target || '-' }}</td>
+                  <td><div class="prog" :title="row.filesText || '—'"><span class="track"><i :style="{ width: (row.filesPct ?? 0) + '%' }"></i></span><span class="pct">{{ row.filesPct === null ? '—' : row.filesPct + '%' }}</span></div></td>
+                  <td><div class="prog" :title="row.bytesText || '—'"><span class="track"><i :style="{ width: (row.bytesPct ?? 0) + '%' }"></i></span><span class="pct">{{ row.bytesPct === null ? '—' : row.bytesPct + '%' }}</span></div></td>
+                  <td><div class="prog" :title="row.translogText || '—'"><span class="track"><i :style="{ width: (row.translogPct ?? 0) + '%' }"></i></span><span class="pct">{{ row.translogPct === null ? '—' : row.translogPct + '%' }}</span></div></td>
+                  <td style="color: var(--text-3)">{{ fmtDuration(row.r.elapsed_ms) }}</td>
                 </tr>
-                <tr v-if="relocatingShards.length === 0">
-                  <td colspan="5" class="dim">{{ t('common.none') }}</td>
+                <tr v-if="recoveryRows.length === 0">
+                  <td colspan="8" class="dim">{{ t('common.none') }}</td>
                 </tr>
               </tbody>
             </table>
-            <!-- recovery API 未实现：进度明细（文件 / 字节 / translog / 耗时）留白 -->
-            <div class="done-strip">
-              <span>{{ t('band.recoveryPlaceholder') }}</span>
-            </div>
           </section>
           <section class="eb-sec">
             <h4>{{ t('band.problems') }} <span class="n">{{ unassignedTotal + unhealthyTotal }}</span><span class="hint">{{ t('band.problemsHint') }}</span></h4>

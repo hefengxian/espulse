@@ -87,7 +87,6 @@ html.light .esp-wb {
 :lang(zh) .esp-wb .vstat .k,
 :lang(zh) .esp-wb .wgrid thead th,
 :lang(zh) .esp-wb table.rt th,
-:lang(zh) .esp-wb .bandhead .ttl,
 :lang(zh) .esp-wb .eb-sec > h4,
 :lang(zh) .esp-wb .psub,
 :lang(zh) .esp-wb .alloc .alloc-lbl {
@@ -374,6 +373,23 @@ html.light .esp-wb {
   background: currentColor;
 }
 
+/* 版本 + 健康胶囊纵向叠放：版本是静态的集群身份，叠在胶囊上方并居中，
+   借胶囊那一格已有的竖向空间，不新占一个横向位置 */
+.esp-wb .vstack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.esp-wb .vver {
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  line-height: 1;
+  color: var(--text-3);
+}
+
 .esp-wb .bar {
   width: 78px;
   height: 5px;
@@ -562,22 +578,6 @@ html.light .esp-wb {
   color: var(--text-4);
 }
 
-.esp-wb .bandhead .ld {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--yellow);
-  box-shadow: 0 0 9px var(--yellow);
-  animation: esp-wb-pulse 1.4s infinite;
-}
-
-.esp-wb .bandhead .ttl {
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--yellow);
-}
-
 .esp-wb .bandhead .cnt {
   color: var(--text-2);
 }
@@ -721,6 +721,31 @@ html.light .esp-wb {
   color: var(--yellow);
 }
 
+/* 恢复表的分片方块：复用网格那套「实心 = 主 / 描边 = 副 + 编号写在方块里」的语言，形状编码主副。
+   这里不上状态色 —— _recovery 并不知道分片的 routing 状态（RELOCATING 还是 INITIALIZING），
+   套黄 / 蓝等于替 ES 猜；状态语义由「阶段」列承担 */
+.esp-wb .shard.rec {
+  background: var(--text-2);
+  color: var(--bg);
+}
+
+.esp-wb .shard.rec.rep {
+  border: 1px solid var(--text-2);
+  color: var(--text-2);
+}
+
+/* 恢复表里的方块是标识不是控件（可点的是索引名），关掉网格里那套悬停放大 */
+.esp-wb table.rt .shard,
+.esp-wb table.rt .shard:hover {
+  cursor: default;
+  transform: none;
+}
+
+/* 索引名是就地过滤的入口（点一下筛到网格），需要给出可点的暗示 */
+.esp-wb table.rt td.ix {
+  cursor: pointer;
+}
+
 .esp-wb .arrow {
   color: var(--text-4);
   margin: 0 3px;
@@ -747,38 +772,10 @@ html.light .esp-wb {
   background: var(--green);
 }
 
-.esp-wb .prog.stuck .track > i {
-  background: var(--red);
-}
-
 .esp-wb .prog .pct {
   font-size: var(--fs-micro);
   color: var(--text-3);
   min-width: 26px;
-}
-
-.esp-wb .done-strip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 7px 12px 1px;
-  font-size: var(--fs-data);
-  font-family: var(--mono);
-  color: var(--text-3);
-  flex-wrap: wrap;
-}
-
-.esp-wb .done-strip .lab {
-  color: var(--green);
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.esp-wb .done-strip .it b {
-  color: var(--text-2);
-  font-weight: 500;
 }
 
 .esp-wb .plist {

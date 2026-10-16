@@ -69,6 +69,7 @@ espulse/
 │   ├── es/
 │   │   ├── client.go            # ES 客户端（SharedClient / ProbeClient / CatalogClient）+ 多 host 故障转移
 │   │   ├── cat.go               # _cat/*?format=json 解析与索引过滤 / 排序
+│   │   ├── recovery.go          # _recovery?active_only=true 采集（拍平成一行一个分片副本）
 │   │   ├── collector.go         # 按需激活的共享采集（缓存 + 单飞去重 + lastAccess 淘汰）
 │   │   ├── rate.go              # 索引写入 / 搜索速率的就地差分（样本环，窗口 60s）
 │   │   ├── snapshot_store.go    # 快照落库（gzip）与样本读写
@@ -159,7 +160,7 @@ CREATE TABLE IF NOT EXISTS console_history (
 -- 它让「空闲被淘汰 / 进程重启」的集群也能秒开：先渲染旧快照，再后台刷新（见 PRD §6.3）。
 CREATE TABLE IF NOT EXISTS snapshots (
     cluster_id TEXT NOT NULL,
-    kind       TEXT NOT NULL,           -- status | nodes | indices | shards | aliases
+    kind       TEXT NOT NULL,           -- status | nodes | indices | shards | aliases | recovery
     data       TEXT NOT NULL,           -- gzip(JSON)
     updated_at INTEGER NOT NULL         -- Unix 毫秒，即该快照的采集时间
     PRIMARY KEY (cluster_id, kind)
@@ -222,6 +223,7 @@ GET    /api/clusters/:id/indices?search=&health=&status=&hide_system=1&sort=&ord
                                                      后端过滤 + 排序 + 分页，返回 { data, total, page, page_size, updated_at }
 GET    /api/clusters/:id/shards
 GET    /api/clusters/:id/aliases
+GET    /api/clusters/:id/recovery                    正在进行的恢复（_recovery?active_only=true 的拍平行）
 ```
 
 **采集模型**：采集器按 `(集群, 数据类型)` 维护共享缓存，采用「需求驱动 + 单飞去重」——只有被页面订阅的数据类型才会被定时刷新，同一缓存项的并发请求只触发一次 ES 调用，`lastAccess` 超过空闲阈值的缓存项停止刷新并被淘汰。接口语义是「读缓存（必要时触发刷新）」，而非「每次请求都采集」，因此服务器模式下 N 个并发用户只对应一份采集。数据类型、刷新间隔与生命周期详见 PRD §6.3。

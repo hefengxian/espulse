@@ -108,6 +108,18 @@ func ListAliases(c *gin.Context) {
 	respondCatalog(c, rows, updatedAt, ok)
 }
 
+// ListRecovery 返回某集群正在进行的恢复（_recovery?active_only=true）。
+// 只包含「此刻还在跑」的分片副本，空闲时为空数组 —— 这里不返回历史恢复，
+// 长期留存不在范围内（见 PRD §11）。
+func ListRecovery(c *gin.Context) {
+	id := c.Param("id")
+	if refreshRequested(c) {
+		es.RefreshKind(id, es.KindRecovery)
+	}
+	rows, updatedAt, ok := es.GetRecovery(id)
+	respondCatalog(c, rows, updatedAt, ok)
+}
+
 // filterIndices 按名称子串 / health / status 过滤，空参数表示不过滤；hideSystem 额外隐藏 `.` 开头的系统索引。
 func filterIndices(rows []es.Index, search, health, status string, hideSystem bool) []es.Index {
 	search = strings.ToLower(strings.TrimSpace(search))

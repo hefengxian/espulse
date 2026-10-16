@@ -38,3 +38,16 @@ export function usageClass(value: string | number | undefined, high: number, mid
   if (n >= mid) return 'hi'
   return ''
 }
+
+// 时长：用于恢复耗时与预计剩余。只保留两级单位（1h20m / 3m05s / 42s），够看且不会撑宽列。
+export function fmtDuration(ms: number | undefined | null): string {
+  const n = Number(ms)
+  if (!Number.isFinite(n) || n < 0) return '—'
+  const total = Math.round(n / 1000)
+  if (total < 60) return `${total}s`
+  const minutes = Math.floor(total / 60)
+  if (minutes < 60) return `${minutes}m${String(total % 60).padStart(2, '0')}s`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h${String(minutes % 60).padStart(2, '0')}m`
+}
+
