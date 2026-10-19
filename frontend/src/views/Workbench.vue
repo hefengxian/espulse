@@ -291,14 +291,21 @@ const filteredIndices = computed<EsIndex[]>(() => {
 })
 
 // ---------- 索引视角 ----------
+// 索引视角只展示 data 节点：master-only / coordinating 节点没有分片，占一整列只会挤压分片矩阵。
+// 角色码不能只看 d：使用 data tier 的节点在 _cat/nodes 里是 h / w / c / f / s，只看 d 会把它们全部漏掉。
+const DATA_ROLE_CODES = new Set(['d', 'h', 'w', 'c', 'f', 's'])
+const isDataNode = (role: string) => Array.from(role || '').some(code => DATA_ROLE_CODES.has(code))
+
 const nodeColumns = computed<WbNodeCol[]>(() =>
-  (overview.value?.nodes ?? []).map(n => ({
-    name: n.name,
-    master: n.master === '*',
-    heap: n.heap_percent,
-    cpu: n.cpu,
-    disk: n.disk_used_percent,
-  })),
+  (overview.value?.nodes ?? [])
+    .filter(n => isDataNode(n.role))
+    .map(n => ({
+      name: n.name,
+      master: n.master === '*',
+      heap: n.heap_percent,
+      cpu: n.cpu,
+      disk: n.disk_used_percent,
+    })),
 )
 
 // 当前页切片：分页后每页渲染固定行数，DOM 规模与集群大小解耦
