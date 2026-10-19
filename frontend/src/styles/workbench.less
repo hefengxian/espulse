@@ -1122,7 +1122,7 @@ html.light .esp-wb {
   z-index: 4;
   background: var(--bg-2);
   border-right: 1px solid var(--border-2);
-  box-shadow: 8px 0 12px -10px rgba(0, 0, 0, 0.85);
+  // box-shadow: 8px 0 12px -10px rgba(0, 0, 0, 0.85);
 }
 
 /* 左上角单元格同时 sticky(top+left)：必须盖住其余表头，否则横向滚动时会被压住 */
@@ -1210,6 +1210,14 @@ html.light .esp-wb {
   font-family: var(--mono);
   font-size: var(--fs-data);
   font-weight: 500;
+}
+
+/* 主节点星标紧跟节点名（不再单占一列），字号略大于名称以保持可辨识度 */
+.esp-wb .nodename .star {
+  color: var(--yellow);
+  margin-left: 3px;
+  font-size: 15px;
+  line-height: 1;
 }
 
 .esp-wb td.index .hdot {

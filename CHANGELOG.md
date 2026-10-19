@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+### 2026-10-19
+
+#### 指标条补充 Pending Tasks
+- **Backend**: `status` / `overview.health` 带上 `_cluster/health` 的 `number_of_pending_tasks`（`Status.PendingTasks` → `overview.health.pending_tasks`），沿用同一份 5s 状态快照，不新增 ES 请求。
+- **Frontend**: 指标条「恢复」组增加「待处理任务」；数据未到时与其他指标一样显示 `—`，不摆 0。
+- **Docs**: PRD §6.1 关键计数补充待处理任务数。
+
+#### 节点视角：Master 列并入节点名，加宽负载列
+- **Frontend**: 去掉独立的 Master 列（含表头与单元格），主节点改为在节点名后紧跟 15px 黄色星标；表头 colspan 由 8 调整为 7。
+- **Frontend**: 负载列由 120px 加宽到 156px —— 11px 等宽字宽约 6.6px，`99.99 / 99.99 / 99.99`（21 字）约 138.6px，加左右各 8px 内边距约 154.6px，原宽度会把第三段裁掉。
+
 ### 2026-10-16
 
 #### 分片恢复进度（`_recovery`）

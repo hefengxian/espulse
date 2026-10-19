@@ -260,25 +260,24 @@ const moreTip = (n: number) => t('grid.moreShards', { n })
     <table class="wgrid is-node">
       <colgroup>
         <col style="width: 150px" />
-        <col style="width: 60px" />
         <col style="width: 52px" />
         <col style="width: 52px" />
         <col style="width: 52px" />
-        <col style="width: 120px" />
+        <!-- 156px：11px 等宽字宽 6.6px，容得下 "99.99 / 99.99 / 99.99"（21 字 = 138.6px）+ 左右各 8px 内边距 -->
+        <col style="width: 156px" />
         <col style="width: 56px" />
         <col style="width: 62px" />
         <col v-for="c in indexColumns" :key="c.name" style="width: 64px" />
       </colgroup>
       <thead>
         <tr class="h1">
-          <th class="frz" colspan="8" style="text-align: left">{{ t('grid.nodeSummary') }} ({{ nodeRows.length }})</th>
+          <th class="frz" colspan="7" style="text-align: left">{{ t('grid.nodeSummary') }} ({{ nodeRows.length }})</th>
           <th v-if="indexColumns.length" class="grp" :colspan="indexColumns.length">
             {{ t('grid.indexAxis', { page: nodePage, pages: nodePages, size: nodePageSize }) }}
           </th>
         </tr>
         <tr>
           <th class="frz">{{ t('grid.nodeRole') }}</th>
-          <th>{{ t('grid.master') }}</th>
           <th class="num">{{ t('grid.heap') }}</th>
           <th class="num">{{ t('grid.cpu') }}</th>
           <th class="num">{{ t('grid.disk') }}</th>
@@ -295,11 +294,14 @@ const moreTip = (n: number) => t('grid.moreShards', { n })
         <tr v-for="(n, ni) in nodeRows" :key="n.name">
           <td class="frz">
             <div class="nodename">
-              <span class="hdot" :class="n.master ? 'yellow' : 'green'"></span> {{ n.name }}
+              <span class="hdot" :class="n.master ? 'yellow' : 'green'"></span> {{ n.name }}<span
+                v-if="n.master"
+                class="star"
+                :title="t('grid.master')"
+              >★</span>
             </div>
             <div class="dim micro">{{ n.role }}</div>
           </td>
-          <td>{{ n.master ? '★' : '-' }}</td>
           <td class="num" :class="usageClass(n.heap, 85, 70)">{{ n.heap || '-' }}%</td>
           <td class="num" :class="usageClass(n.cpu, 80, 65)">{{ n.cpu || '-' }}%</td>
           <td class="num" :class="usageClass(n.disk, 80, 70)">{{ n.disk || '-' }}%</td>

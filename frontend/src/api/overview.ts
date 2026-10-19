@@ -9,6 +9,7 @@ export interface OverviewHealth {
   relocating_shards: number
   initializing_shards: number
   unassigned_shards: number
+  pending_tasks: number
 }
 
 export interface OverviewCounts {

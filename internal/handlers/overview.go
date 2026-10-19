@@ -23,6 +23,7 @@ type overviewHealth struct {
 	RelocatingShards    int     `json:"relocating_shards"`
 	InitializingShards  int     `json:"initializing_shards"`
 	UnassignedShards    int     `json:"unassigned_shards"`
+	PendingTasks        int     `json:"pending_tasks"`
 }
 
 type overviewCounts struct {
@@ -148,6 +149,7 @@ func GetOverview(c *gin.Context) {
 			RelocatingShards:    status.RelocatingShards,
 			InitializingShards:  status.InitializingShards,
 			UnassignedShards:    status.UnassignedShards,
+			PendingTasks:        status.PendingTasks,
 		},
 		Counts: overviewCounts{
 			Nodes:         status.NodeCount,

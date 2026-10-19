@@ -66,6 +66,7 @@ export default {
     rep: '副本',
     recoveryThroughput: '恢复吞吐',
     remaining: '剩余',
+    pendingTasks: '待处理任务',
     started: 'started',
     relocating: '迁移',
     initializing: '初始化',

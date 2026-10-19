@@ -26,6 +26,7 @@ type Status struct {
 	RelocatingShards    int       `json:"relocating_shards"`
 	InitializingShards  int       `json:"initializing_shards"`
 	UnassignedShards    int       `json:"unassigned_shards"`
+	PendingTasks        int       `json:"pending_tasks"`
 	ActiveShardsPercent float64   `json:"active_shards_percent"`
 	CollectedAt         time.Time `json:"collected_at"`
 }
@@ -569,6 +570,7 @@ func collect(cluster models.Cluster) Status {
 		RelocatingShards:    info.RelocatingShards,
 		InitializingShards:  info.InitializingShards,
 		UnassignedShards:    info.UnassignedShards,
+		PendingTasks:        info.PendingTasks,
 		ActiveShardsPercent: info.ActiveShardsPercent,
 		CollectedAt:         collectedAt,
 	}

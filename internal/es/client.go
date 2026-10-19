@@ -263,6 +263,7 @@ type Info struct {
 	RelocatingShards    int     `json:"relocating_shards"`
 	InitializingShards  int     `json:"initializing_shards"`
 	UnassignedShards    int     `json:"unassigned_shards"`
+	PendingTasks        int     `json:"pending_tasks"`
 	ActiveShardsPercent float64 `json:"active_shards_percent"`
 }
 
@@ -281,6 +282,7 @@ type healthResponse struct {
 	RelocatingShards            int     `json:"relocating_shards"`
 	InitializingShards          int     `json:"initializing_shards"`
 	UnassignedShards            int     `json:"unassigned_shards"`
+	NumberOfPendingTasks        int     `json:"number_of_pending_tasks"`
 	ActiveShardsPercentAsNumber float64 `json:"active_shards_percent_as_number"`
 }
 
@@ -307,6 +309,7 @@ func Probe(t Target) (*Info, error) {
 		RelocatingShards:    health.RelocatingShards,
 		InitializingShards:  health.InitializingShards,
 		UnassignedShards:    health.UnassignedShards,
+		PendingTasks:        health.NumberOfPendingTasks,
 		ActiveShardsPercent: health.ActiveShardsPercentAsNumber,
 	}, nil
 }

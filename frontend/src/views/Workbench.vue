@@ -776,6 +776,10 @@ watch(
            空闲时留空而不摆 0 —— 0 会被读成「恢复停滞」 -->
       <div class="vgrp">
         <div class="vstat">
+          <span class="k">{{ t('vitals.pendingTasks') }}</span>
+          <span class="v">{{ shown(fmtInt(overview?.health.pending_tasks ?? 0)) }}</span>
+        </div>
+        <div class="vstat">
           <span class="k">{{ t('vitals.recoveryThroughput') }}</span>
           <span
             class="v"
