@@ -142,6 +142,13 @@ const groupPriRepTip = (g: WbGroup) =>
 const docsTip = (value: string | number | undefined | null) => `${t('grid.docs')} ${fmtInt(value)}`
 const storeTip = (value: string | number | undefined | null) => `${t('grid.store')} ${fmtBytes(value)}`
 const moreTip = (n: number) => t('grid.moreShards', { n })
+
+// 用量轨宽度：缺值按 0 处理，越界值夹到 0–100，避免脏数据把轨道撑破
+function pct(value: string | number | undefined): string {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '0%'
+  return `${Math.min(100, Math.max(0, n))}%`
+}
 </script>
 
 <template>
@@ -318,9 +325,24 @@ const moreTip = (n: number) => t('grid.moreShards', { n })
             </div>
             <div class="dim micro">{{ n.role }}</div>
           </td>
-          <td class="num" :class="usageClass(n.heap, 85, 70)">{{ n.heap || '-' }}%</td>
-          <td class="num" :class="usageClass(n.cpu, 80, 65)">{{ n.cpu || '-' }}%</td>
-          <td class="num" :class="usageClass(n.disk, 80, 70)">{{ n.disk || '-' }}%</td>
+          <td class="num usage">
+            <div class="umeter" :class="usageClass(n.heap, 85, 70)" :title="t('grid.heap') + ' ' + (n.heap ? n.heap + '%' : '-')">
+              <span class="uv">{{ n.heap ? n.heap + '%' : '-' }}</span>
+              <i class="ubar"><b :style="{ width: pct(n.heap) }"></b></i>
+            </div>
+          </td>
+          <td class="num usage">
+            <div class="umeter" :class="usageClass(n.cpu, 80, 65)" :title="t('grid.cpu') + ' ' + (n.cpu ? n.cpu + '%' : '-')">
+              <span class="uv">{{ n.cpu ? n.cpu + '%' : '-' }}</span>
+              <i class="ubar"><b :style="{ width: pct(n.cpu) }"></b></i>
+            </div>
+          </td>
+          <td class="num usage">
+            <div class="umeter" :class="usageClass(n.disk, 80, 70)" :title="t('grid.disk') + ' ' + (n.disk ? n.disk + '%' : '-')">
+              <span class="uv">{{ n.disk ? n.disk + '%' : '-' }}</span>
+              <i class="ubar"><b :style="{ width: pct(n.disk) }"></b></i>
+            </div>
+          </td>
           <td class="mono">{{ n.load1 || '-' }} / {{ n.load5 || '-' }} / {{ n.load15 || '-' }}</td>
           <td class="num mono">{{ n.shards ?? '-' }}</td>
           <td class="num mono dim">—</td>

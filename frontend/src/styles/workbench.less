@@ -1197,6 +1197,63 @@ html.light .esp-wb {
   text-align: right;
 }
 
+/* 节点资源用量：百分比在上、3px 用量轨在下，不额外占行高（11 + 3 + 3 + 上下 3 = 23px ≤ 25px）。
+   颜色主要落在轨道上：常态绿轨压低不抢读，只有 hi / cr 才连数字一起转黄 / 红。 */
+.esp-wb td.usage {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.esp-wb .umeter {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 3px 0;
+  font-family: var(--mono);
+  font-size: var(--fs-data);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.esp-wb .umeter .uv {
+  color: var(--text-2);
+  text-align: right;
+}
+
+.esp-wb .umeter .ubar {
+  display: block;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--bg-4);
+  overflow: hidden;
+}
+
+.esp-wb .umeter .ubar > b {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  opacity: 0.55;
+}
+
+.esp-wb .umeter.hi .uv {
+  color: var(--yellow);
+}
+
+.esp-wb .umeter.hi .ubar > b {
+  background: var(--yellow);
+  opacity: 1;
+}
+
+.esp-wb .umeter.cr .uv {
+  color: var(--red);
+}
+
+.esp-wb .umeter.cr .ubar > b {
+  background: var(--red);
+  opacity: 1;
+}
+
 .esp-wb td.index {
   color: var(--text);
   font-family: var(--mono);
