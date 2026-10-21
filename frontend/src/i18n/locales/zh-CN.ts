@@ -119,6 +119,8 @@ export default {
     health: 'Health',
     status: '状态',
     priRep: '主/副',
+    noReplica: '副本 0：无冗余，节点故障即可能丢数据',
+    noReplicaCount: '{n} 个索引无副本',
     docs: '文档',
     store: '存储',
     writePerSec: '写入/s',

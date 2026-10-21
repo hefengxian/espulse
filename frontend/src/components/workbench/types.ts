@@ -27,6 +27,8 @@ export interface WbGroup {
   worst: HealthKey
   pri: number
   rep: number
+  // 组内无副本的索引数：组头汇总值不会暴露「个别索引 0 副本」，单独计数用于告警
+  repZero: number
   docs: number
   store: number
 }

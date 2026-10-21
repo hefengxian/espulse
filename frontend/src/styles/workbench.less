@@ -1299,6 +1299,20 @@ html.light .esp-wb {
   width: 40px; /* 4×6 + 15 + 1 */
 }
 
+/* 副本 0：冗余缺口告警。用黄色而非红色 —— 红色留给已经发生的不可用，这里只是「坏一台就没救」；
+   副本数字加虚线底线，不靠颜色也能识别。只染 pr 微列、不加行底纹：日志类索引常有意不建副本，
+   行级高亮会让整张表变成噪声。 */
+.esp-wb .ixm.pr.no-rep {
+  color: var(--yellow);
+  font-weight: 600;
+}
+
+.esp-wb .ixm.pr.no-rep .repdigit {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
 .esp-wb .ixm.docs {
   width: 46px; /* 5×6 + 15 + 1 */
 }

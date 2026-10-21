@@ -346,6 +346,10 @@ const groups = computed<WbGroup[]>(() => {
       worst,
       pri: rows.reduce((a, r) => a + (Number(r.index.pri) || 0), 0),
       rep: rows.reduce((a, r) => a + (Number(r.index.rep) || 0), 0),
+      // close / frozen 索引的副本数不代表在线冗余，不参与告警
+      repZero: rows.filter(
+        r => (r.index.status || 'open').toLowerCase() === 'open' && Number(r.index.rep) === 0,
+      ).length,
       docs: rows.reduce((a, r) => a + (Number(r.index['docs.count']) || 0), 0),
       store: rows.reduce((a, r) => a + (Number(r.index['store.size']) || 0), 0),
     }

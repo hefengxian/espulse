@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { EsShard } from '../../api/catalog'
+import type { EsIndex, EsShard } from '../../api/catalog'
 import { fmtBytes, fmtInt, fmtRate, usageClass } from '../../utils/format'
 import type { SortKey, SortOrder, ViewMode, WbGroup, WbIndexCol, WbIndexRow, WbNodeCol, WbNodeRow } from './types'
 
@@ -131,6 +131,14 @@ const isClosed = (status: string | undefined) => (status || 'open').toLowerCase(
 
 const priRepTip = (pri: string | number, rep: string | number) =>
   `${t('vitals.pri')} ${pri} / ${t('vitals.rep')} ${rep}`
+
+// 副本 0 = 冗余缺口：health 仍可能是 green，只有主分片所在节点挂掉才会暴露，所以要主动提醒。
+// close / frozen 索引的副本数不代表在线冗余，不打扰。
+const noReplica = (index: EsIndex) => !isClosed(index.status) && Number(index.rep) === 0
+const priRepTipFor = (index: EsIndex) =>
+  noReplica(index) ? `${priRepTip(index.pri, index.rep)} · ${t('grid.noReplica')}` : priRepTip(index.pri, index.rep)
+const groupPriRepTip = (g: WbGroup) =>
+  g.repZero ? `${priRepTip(g.pri, g.rep)} · ${t('grid.noReplicaCount', { n: g.repZero })}` : priRepTip(g.pri, g.rep)
 const docsTip = (value: string | number | undefined | null) => `${t('grid.docs')} ${fmtInt(value)}`
 const storeTip = (value: string | number | undefined | null) => `${t('grid.store')} ${fmtBytes(value)}`
 const moreTip = (n: number) => t('grid.moreShards', { n })
@@ -197,7 +205,11 @@ const moreTip = (n: number) => t('grid.moreShards', { n })
                 <!-- 元信息与索引行同处一行、右侧定宽成列；组头为汇总值，整体降一档 -->
                 <span class="ixmeta agg">
                   <span class="ixm cnt">{{ item.group.rows.length }}×</span>
-                  <span class="ixm pr" :title="priRepTip(item.group.pri, item.group.rep)">{{ item.group.pri }}/{{ item.group.rep }}</span>
+                  <span
+                    class="ixm pr"
+                    :class="{ 'no-rep': item.group.repZero > 0 }"
+                    :title="groupPriRepTip(item.group)"
+                  >{{ item.group.pri }}/{{ item.group.rep }}</span>
                   <span class="ixm docs" :title="docsTip(item.group.docs)">{{ fmtCount(item.group.docs) }}</span>
                   <span class="ixm store" :title="storeTip(item.group.store)">{{ fmtStore(item.group.store) }}</span>
                 </span>
@@ -218,7 +230,11 @@ const moreTip = (n: number) => t('grid.moreShards', { n })
                 <!-- 状态常态不占位：只有 close / frozen 等异常态才冒出来 -->
                 <span v-if="isClosed(item.row.index.status)" class="ixst">{{ item.row.index.status }}</span>
                 <span class="ixmeta">
-                  <span class="ixm pr" :title="priRepTip(item.row.index.pri, item.row.index.rep)">{{ item.row.index.pri }}/{{ item.row.index.rep }}</span>
+                  <span
+                    class="ixm pr"
+                    :class="{ 'no-rep': noReplica(item.row.index) }"
+                    :title="priRepTipFor(item.row.index)"
+                  >{{ item.row.index.pri }}/<span class="repdigit">{{ item.row.index.rep }}</span></span>
                   <span class="ixm docs" :title="docsTip(item.row.index['docs.count'])">{{ fmtCount(item.row.index['docs.count']) }}</span>
                   <span class="ixm store" :title="storeTip(item.row.index['store.size'])">{{ fmtStore(item.row.index['store.size']) }}</span>
                 </span>
