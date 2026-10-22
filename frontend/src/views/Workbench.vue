@@ -589,14 +589,18 @@ const unreachable = computed(() => !!overview.value && overview.value.reachable 
 const gridState = computed<'error' | 'skeleton' | 'empty' | 'ready'>(() => {
   if (unreachable.value || error.value) return 'error'
   if (!overview.value) return 'skeleton'
-  return filteredIndices.value.length === 0 ? 'empty' : 'ready'
+  // 节点视角的行来自 overview.nodes，与索引无关：集群没有索引时节点仍然要能看
+  const hasRows = view.value === 'node' ? nodeRows.value.length > 0 : filteredIndices.value.length > 0
+  return hasRows ? 'ready' : 'empty'
 })
 
 // 空态文案：只要有任何过滤条件在起作用，就该说「没有匹配」而不是「暂无索引」
 const emptyText = computed(() =>
-  hideSystem.value || onlyProblems.value || !!search.value.trim()
-    ? t('grid.emptyNoIndex')
-    : t('grid.emptyNoIndexClean'),
+  view.value === 'node'
+    ? t('grid.emptyNoNode')
+    : hideSystem.value || onlyProblems.value || !!search.value.trim()
+      ? t('grid.emptyNoIndex')
+      : t('grid.emptyNoIndexClean'),
 )
 
 // 无数据时指标一律降级为占位符，避免把「还没拿到数据」读成 0

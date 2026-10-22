@@ -157,6 +157,7 @@ export default {
     emptyFiltered: '没有匹配的记录。',
     emptyNoIndex: '没有匹配的索引（. 开头的索引已隐藏）。',
     emptyNoIndexClean: '该集群暂无索引。',
+    emptyNoNode: '该集群没有可展示的节点。',
     emptyNoAlias: '该集群暂无别名。',
     noMatchAlias: '没有匹配的别名。',
   },
