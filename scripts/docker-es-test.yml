@@ -1,17 +1,37 @@
 version: '3.8'
 services:
-  elasticsearch:
+  es01:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.19.0
-    container_name: es-m2
+    container_name: es-m2-01
     environment:
-      - discovery.type=single-node
+      - cluster.name=es-test
+      - node.name=es01
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms4g -Xmx4g"
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
     ports:
       - "9200:9200"
     volumes:
-      - es_data:/usr/share/elasticsearch/data
+      - es01_data:/usr/share/elasticsearch/data
+
+  es02:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.0
+    container_name: es-m2-02
+    environment:
+      - cluster.name=es-test
+      - node.name=es02
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    ports:
+      - "9201:9200"
+    volumes:
+      - es02_data:/usr/share/elasticsearch/data
 
 volumes:
-  es_data:
+  es01_data:
+    driver: local
+  es02_data:
     driver: local
