@@ -123,15 +123,10 @@ html.light .esp-wb {
   gap: 8px;
 }
 
+/* Logo 是透明底的纯图形，宽度按自身比例；容器不再画底和光晕 */
 .esp-wb .brand .mark {
-  width: 23px;
   height: 23px;
-  border-radius: 7px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 14px var(--accent-glow);
+  width: auto;
 }
 
 .esp-wb .brand span {

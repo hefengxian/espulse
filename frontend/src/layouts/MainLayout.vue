@@ -54,12 +54,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="esp-app-container h-screen flex flex-col overflow-hidden font-sans bg-bg text-text antialiased">
     <header class="esp-header h-13 bg-bg-2 flex items-center gap-2.5 px-4 flex-shrink-0">
-      <div class="w-7 h-7 flex-shrink-0 bg-gradient-to-br from-accent to-purple-600 rounded-7px flex items-center justify-center shadow-[0_0_16px_var(--esp-accent-glow)]">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="7" r="3" fill="white" opacity=".9" />
-          <circle cx="7" cy="7" r="6" stroke="white" stroke-width="1" opacity=".4" />
-        </svg>
-      </div>
+      <img src="/logo-v4-workbench.svg" alt="ESPulse" class="h-7 w-auto flex-shrink-0" />
 
       <!-- 层 1：我在看哪个集群（Hub 只是管理页，集群本身落在工作台） -->
       <ClusterSwitcher />

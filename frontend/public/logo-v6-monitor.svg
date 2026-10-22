@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-label="ESPulse">
+  <title>ESPulse · Monitor</title>
+  <defs>
+    <clipPath id="esp6-tile"><rect width="64" height="64" rx="16"/></clipPath>
+    <filter id="esp6-glow" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
+  </defs>
+  <g clip-path="url(#esp6-tile)">
+    <rect width="64" height="64" fill="#0B0D12"/>
+    <!-- ES 三段压暗成背景层，只留一点 ES 的色相 -->
+    <g transform="translate(6.4 3.2) scale(0.2)">
+      <path d="M242.013385 68.8634049C247.038139 64.2341589 251.712329 59.2633375 256 53.932963C229.63577 21.0787997 189.213014 0 143.819437 0C87.0010604 0 38.1018406 33.0519175 14.7758341 80.8994445L211.334518 80.8994445C222.714373 80.8994445 233.653776 76.5758187 242.013385 68.8634049" fill="#F5C445" fill-opacity=".3"/>
+      <path d="M0 143.820336C0 156.260873 1.74383247 168.260957 4.71014544 179.775644L179.776543 179.775644C199.632863 179.775644 215.731852 163.676655 215.731852 143.820336C215.731852 123.955028 199.632863 107.865027 179.776543 107.865027L4.71014544 107.865027C1.74383247 119.370726 0 131.379799 0 143.820336" fill="#2A3143" fill-opacity=".55"/>
+      <path d="M211.333619 206.742126L14.7749352 206.742126C38.1099305 254.580664 87.0001615 287.641571 143.818538 287.641571C189.212115 287.641571 229.634871 266.553782 255.999101 233.708608C251.711431 228.369244 247.03724 223.398423 242.012486 218.769177C233.652877 211.047774 222.713474 206.742126 211.333619 206.742126" fill="#3DDC97" fill-opacity=".3"/>
+    </g>
+    <!-- 一条监控心跳横扫整个集群标记 -->
+    <path d="M4 30H17l4.5-16 6 32 4.5-16H58" stroke="#7C8BFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity=".35" filter="url(#esp6-glow)"/>
+    <path d="M4 30H17l4.5-16 6 32 4.5-16H58" stroke="#A9B4FF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="58" cy="30" r="2.6" fill="#A78BFA"/>
+  </g>
+  <rect x=".5" y=".5" width="63" height="63" rx="15.5" stroke="#7C8BFF" stroke-opacity=".14"/>
+</svg>

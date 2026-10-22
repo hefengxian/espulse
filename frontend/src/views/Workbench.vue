@@ -668,12 +668,7 @@ watch(
     <!-- ===== top bar ===== -->
     <header class="topbar">
       <div class="brand">
-        <div class="mark">
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-            <circle cx="7" cy="7" r="3" fill="#fff" opacity=".9" />
-            <circle cx="7" cy="7" r="6" stroke="#fff" stroke-width="1" opacity=".45" />
-          </svg>
-        </div>
+        <img class="mark" src="/logo-v4-workbench.svg" alt="ESPulse" />
         <span>{{ t('common.appName') }}</span>
       </div>
       <div class="vsep"></div>

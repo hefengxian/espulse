@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-label="ESPulse">
+  <title>ESPulse · Accent</title>
+  <defs>
+    <clipPath id="esp5-tile"><rect width="64" height="64" rx="16"/></clipPath>
+    <linearGradient id="esp5-mark" x1="10" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8D9BFF"/>
+      <stop offset=".55" stop-color="#7C8BFF"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#esp5-tile)">
+    <rect width="64" height="64" fill="#0F1116"/>
+    <!-- 只用 ES 标记的上下两段，中段交给心跳，整体走应用 accent 渐变 -->
+    <g transform="translate(6.4 3.2) scale(0.2)">
+      <path d="M242.013385 68.8634049C247.038139 64.2341589 251.712329 59.2633375 256 53.932963C229.63577 21.0787997 189.213014 0 143.819437 0C87.0010604 0 38.1018406 33.0519175 14.7758341 80.8994445L211.334518 80.8994445C222.714373 80.8994445 233.653776 76.5758187 242.013385 68.8634049" fill="url(#esp5-mark)"/>
+      <path d="M211.333619 206.742126L14.7749352 206.742126C38.1099305 254.580664 87.0001615 287.641571 143.818538 287.641571C189.212115 287.641571 229.634871 266.553782 255.999101 233.708608C251.711431 228.369244 247.03724 223.398423 242.012486 218.769177C233.652877 211.047774 222.713474 206.742126 211.333619 206.742126" fill="url(#esp5-mark)"/>
+    </g>
+    <path d="M8.5 32H22l4.5-9.7 5.5 19.4 4.5-9.7H56" stroke="#E7EAF2" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <rect x=".5" y=".5" width="63" height="63" rx="15.5" stroke="#7C8BFF" stroke-opacity=".14"/>
+</svg>
