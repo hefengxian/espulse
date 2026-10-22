@@ -283,7 +283,7 @@ function pct(value: string | number | undefined): string {
     <table class="wgrid is-node">
       <colgroup>
         <col style="width: 150px" />
-        <col style="width: 52px" />
+        <col style="width: 96px" />
         <col style="width: 52px" />
         <col style="width: 52px" />
         <!-- 156px：11px 等宽字宽 6.6px，容得下 "99.99 / 99.99 / 99.99"（21 字 = 138.6px）+ 左右各 8px 内边距 -->
@@ -323,11 +323,13 @@ function pct(value: string | number | undefined): string {
                 :title="t('grid.master')"
               >★</span>
             </div>
-            <div class="dim micro">{{ n.role }}</div>
+            <div class="dim micro">{{ n.addr }}</div>
           </td>
           <td class="num usage">
-            <div class="umeter" :class="usageClass(n.heap, 85, 70)" :title="t('grid.heap') + ' ' + (n.heap ? n.heap + '%' : '-')">
-              <span class="uv">{{ n.heap ? n.heap + '%' : '-' }}</span>
+            <div class="umeter" :class="usageClass(n.heap, 85, 70)" :title="t('grid.heap') + ' ' + (n.heap ? n.heap + '%' : '-') + (n.heapMax ? ' / ' + n.heapMax : '')">
+              <span class="uv">
+                <span v-if="n.heapMax" class="umax">{{ n.heapMax }}</span>{{ n.heap ? n.heap + '%' : '-' }}
+              </span>
               <i class="ubar"><b :style="{ width: pct(n.heap) }"></b></i>
             </div>
           </td>

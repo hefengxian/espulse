@@ -25,7 +25,10 @@ export interface OverviewNode {
   name: string
   role: string
   master: string
+  ip: string
+  port: string
   heap_percent: string
+  heap_max: string
   cpu: string
   load_1m: string
   load_5m: string

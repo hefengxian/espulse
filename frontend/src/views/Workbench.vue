@@ -364,20 +364,14 @@ const indexColumns = computed<WbIndexCol[]>(() => {
   return filteredIndices.value.slice(start, start + NODE_PAGE_SIZE).map(i => ({ name: i.index, health: i.health }))
 })
 
-const ROLE_CODES = ['c', 'd', 'f', 'h', 'i', 'l', 'm', 'r', 's', 't', 'v', 'w']
-function formatRole(role: string): string {
-  if (!role) return '-'
-  if (role === '-') return t('role.coord')
-  const labels = Array.from(role, code => (ROLE_CODES.includes(code) ? t(`role.${code}`) : null))
-  return labels.every(Boolean) ? (labels as string[]).join(' · ') : role
-}
-
 const nodeRows = computed<WbNodeRow[]>(() =>
   (overview.value?.nodes ?? []).map(n => ({
     name: n.name,
-    role: formatRole(n.role),
+    // _cat/nodes 缺列时是 "-"：宁可显示占位符，也不要把 "-:-" 拼给用户看
+    addr: n.ip && n.port ? `${n.ip}:${n.port}` : '-',
     master: n.master === '*',
     heap: n.heap_percent,
+    heapMax: n.heap_max && n.heap_max !== '-' ? n.heap_max : '',
     cpu: n.cpu,
     disk: n.disk_used_percent,
     load1: n.load_1m,
@@ -404,9 +398,16 @@ const healthCounts = computed(() => {
 })
 
 const donutStyle = computed(() => {
-  const total = healthCounts.value.green + healthCounts.value.yellow + healthCounts.value.red || 1
-  const g = (healthCounts.value.green / total) * 100
-  const gy = ((healthCounts.value.green + healthCounts.value.yellow) / total) * 100
+  const { green, yellow, red } = healthCounts.value
+  const total = green + yellow + red
+  // 没有索引时（刚搭好的空集群）健康计数全为 0，按占比画会落成满圈红；
+  // 此时环形图跟随集群自身状态，绿色的空集群就该是绿圈。
+  if (!total) {
+    const color = healthKey.value === 'red' ? 'var(--red)' : healthKey.value === 'yellow' ? 'var(--yellow)' : 'var(--green)'
+    return { background: color }
+  }
+  const g = (green / total) * 100
+  const gy = ((green + yellow) / total) * 100
   return { background: `conic-gradient(var(--green) 0 ${g}%, var(--yellow) ${g}% ${gy}%, var(--red) ${gy}% 100%)` }
 })
 

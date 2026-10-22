@@ -41,9 +41,11 @@ export interface WbIndexCol {
 
 export interface WbNodeRow {
   name: string
-  role: string
+  // 节点地址 ip:port：角色在节点视角的各列里已能看出来，位置留给更实用的连接信息
+  addr: string
   master: boolean
   heap: string
+  heapMax: string
   cpu: string
   disk: string
   load1: string

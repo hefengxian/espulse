@@ -39,7 +39,10 @@ type overviewNode struct {
 	Name            string `json:"name"`
 	Role            string `json:"role"`
 	Master          string `json:"master"`
+	IP              string `json:"ip"`
+	Port            string `json:"port"`
 	HeapPercent     string `json:"heap_percent"`
+	HeapMax         string `json:"heap_max"`
 	CPU             string `json:"cpu"`
 	Load1m          string `json:"load_1m"`
 	Load5m          string `json:"load_5m"`
@@ -179,7 +182,10 @@ func GetOverview(c *gin.Context) {
 			Name:            n.Name,
 			Role:            n.Role,
 			Master:          n.Master,
+			IP:              n.IP,
+			Port:            n.Port,
 			HeapPercent:     n.HeapPercent,
+			HeapMax:         n.HeapMax,
 			CPU:             n.CPU,
 			Load1m:          n.Load1m,
 			Load5m:          n.Load5m,

@@ -14,10 +14,15 @@ import (
 
 // Node 是 _cat/nodes 的一行。
 type Node struct {
-	Name            string `json:"name"`
-	Role            string `json:"node.role"`
-	Master          string `json:"master"`
-	HeapPercent     string `json:"heap.percent"`
+	Name        string `json:"name"`
+	Role        string `json:"node.role"`
+	Master      string `json:"master"`
+	IP          string `json:"ip"`
+	Port        string `json:"port"`
+	HeapPercent string `json:"heap.percent"`
+	// HeapMax 是堆上限（_cat 的格式化值，如 "1gb"）：只靠百分比看不出小堆 /
+	// 大堆的差别，同一 80% 在 512mb 与 16gb 上是完全不同的风险。
+	HeapMax         string `json:"heap.max"`
 	CPU             string `json:"cpu"`
 	Load1m          string `json:"load_1m"`
 	Load5m          string `json:"load_5m"`
@@ -80,7 +85,7 @@ type Alias struct {
 func fetchNodes(cluster models.Cluster) (any, error) {
 	query := url.Values{}
 	query.Set("format", "json")
-	query.Set("h", "name,node.role,master,heap.percent,cpu,load_1m,load_5m,load_15m,disk.used_percent")
+	query.Set("h", "name,node.role,master,ip,port,heap.percent,heap.max,cpu,load_1m,load_5m,load_15m,disk.used_percent")
 	query.Set("s", "name") // 按节点名升序，与索引/分片列表的排序方式保持一致
 	return fetchCat[Node](cluster, "/_cat/nodes", query)
 }

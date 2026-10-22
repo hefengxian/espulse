@@ -1212,8 +1212,18 @@ html.light .esp-wb {
 }
 
 .esp-wb .umeter .uv {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
   color: var(--text-2);
   text-align: right;
+}
+
+/* 堆上限贴在百分比左侧、降一档字号：百分比仍是读数主体，上限只回答「这个百分比有多大」 */
+.esp-wb .umeter .umax {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
 }
 
 .esp-wb .umeter .ubar {
