@@ -1,13 +1,13 @@
 # TASKS — ESPulse 任务看板
 
-> 状态：进行中 | 当前阶段：**Phase 1 收口 + Phase 2 起步（统一工作台已转正）**
+> 状态：进行中 | 当前阶段：**Phase 2 推进（统一工作台已转正）+ Phase 4 macOS 桌面版启动**
 > 原则：功能先行，UI 后置（见 [PRD.md](./PRD.md) §2.1）；单页看板、信息密集、动态刷新、不增栏目（见 §2.4）；**集群只有一个落地页 `/workbench/:id`**（见 §2.5）
 
 ---
 
 ## 🎯 当前目标
 
-把「统一工作台」做成唯一入口并补齐缺口，然后进入 Dev Console 的智能提示。
+把「统一工作台」做成唯一入口并补齐缺口，然后进入 Dev Console 的智能提示；并行启动 macOS 桌面版打包（见 Phase 4），先出可用版本。
 
 ---
 
@@ -69,13 +69,55 @@
 - [ ] 集群凭据 AES-GCM 加密存储
 - [ ] 多实例部署下的跨进程采集去重（见 PRD §10）
 
-### 最后环节 — 打包与多平台发布
+### Phase 4 — macOS 桌面版打包（本轮）
 
-> **前置条件：直到我们认为所有设计功能都完成之前，前面各阶段都不考虑实现打包与发布。**
+> 决策（2026-10）：**只做 macOS**，目标是尽快出可用版本；不做服务器版，Windows / Linux 留到后续。原则：**能不自己实现就不自己实现** —— 用系统默认菜单、不做托盘、不做自定义标题栏、不做窗口状态记忆。
+> 构建产物跟随当前机器架构（两台 Mac 各自出包即可）；暂不做 universal 双架构包。
+> 顺序固定：先让 Go 单二进制自己托管前端（浏览器可验收），再套 Electron 壳，最后打包。
 
-- [ ] `embed.FS` 内嵌前端 + 单二进制构建脚本
-- [ ] 交叉编译 / 多平台发布（Windows / macOS / Linux）
-- [ ] Electron 打包与托盘（Windows / macOS / Linux）
+#### P0 后端：单二进制托管前端（Electron 的硬前置）
+
+- [ ] `frontend/vite.config.ts`：`base: '/'`、`build.outDir: '../internal/web/dist'`、`emptyOutDir: true`
+- [ ] 新增 `internal/web`：`//go:embed all:dist` + 静态 handler —— `assets/*` 长缓存、`index.html` 不缓存，非 `/api` 未命中回 `index.html`
+- [ ] 保留 `internal/web/dist/.gitkeep` 占位，并在根 `.gitignore` 放行，保证前端未构建时 `go run .` 仍可编译
+- [ ] `internal/router/router.go`：API 注册完后挂载 `internal/web` 的 handler
+- [ ] `main.go` 参数化（`flag` 即可，不引配置库）：`--host`（默认 `127.0.0.1`）、`--port`（默认 `18080`，`0` = 内核分配）、`--data-dir`（默认 `./data`）、`--log-file`
+- [ ] 启动握手：监听成功后 stdout 打印 `ESPULSE_READY url=http://<host>:<port>`；补 `GET /api/health`
+- [ ] 日志：指定 `--log-file` 时同时写文件（桌面端传 userData 路径，无控制台也能排障）；Gin 用 release mode
+- [ ] 退出：`SIGINT / SIGTERM` → 停采集器、关 DB
+
+验收：`go run . --data-dir /tmp/espulse-test`，浏览器打开 `http://127.0.0.1:18080` 全功能可用（无需 Vite）；`curl -s 127.0.0.1:18080/api/health` 返回正常，且 stdout 有握手行。
+
+#### P1 Electron 壳（最小实现）
+
+- [ ] 新增 `desktop/`：`package.json`（`main: main.js`，devDeps：`electron` / `electron-builder`）、`main.js`
+- [ ] 启动链路：单实例锁 → `spawn` 后端（`--host 127.0.0.1 --port 0 --data-dir <userData>/data --log-file <userData>/logs/espulse.log`）→ 读 stdout 的 `ESPULSE_READY`（10s 超时弹错误框）→ `loadURL`
+- [ ] 窗口：1440×900、最小 1024×700，不记忆尺寸 / 位置
+- [ ] 菜单：**用 Electron 默认菜单**（保留 Cmd+C/V 等编辑快捷键），不自定义、不隐藏
+- [ ] 安全：`contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`、无 preload；`setWindowOpenHandler` → 系统浏览器；`will-navigate` 拦截站外地址
+- [ ] 生命周期：关窗即退出；`before-quit` 结束后端；后端非 0 退出提示「重启 / 退出」；macOS `activate` 重开窗口；生产不开 DevTools
+- [ ] 开发模式：`ESPULSE_DEV_URL=http://localhost:5173` 时加载 Vite dev server
+
+验收：`pnpm dev`（frontend）+ `go run .` + `npx electron desktop` 能正常使用；退出后 `pgrep -f espulse` 无残留。
+
+#### P2 打包（macOS）
+
+- [ ] 图标：1024px PNG → `iconutil` 生成 `desktop/build/icon.icns`（从 `frontend/public/` 现有 logo 出图）
+- [ ] electron-builder 配置（`desktop/package.json` 内）：`appId: com.hefengxian.espulse`、`productName: ESPulse`、`asar: true`、`mac.target: [dmg, zip]`、`mac.category: public.app-category.developer-tools`、`mac.identity: null`（本阶段不签名）、Go 二进制走 `extraResources`（asar 外）
+- [ ] `scripts/build-macos.sh`：前端 build → `CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o desktop/backend/espulse .` → `cd desktop && npx electron-builder --mac`
+- [ ] 兜底：`afterPack` 给 `backend/espulse` 补可执行位
+- [ ] `.gitignore`：`desktop/node_modules/`、`desktop/backend/`、`desktop/release/`
+- [ ] README 写明未签名版本的打开方式：右键「打开」，或 `xattr -dr com.apple.quarantine /Applications/ESPulse.app`
+
+验收：dmg 安装后能启动、能连 ES；数据落在 `~/Library/Application Support/ESPulse/`；关窗后 `pgrep -f espulse` 无残留。
+
+#### P3 文档同步
+
+- [ ] ARCHITECTURE（§2 目录、§6 内嵌路径、§7 构建、§8 Electron）、TASKS 勾选、CHANGELOG
+
+#### 本阶段明确不做
+
+Windows / Linux 打包、服务器模式、托盘、自定义菜单与标题栏、窗口状态记忆、自动更新、代码签名与公证、universal 双架构包。
 
 ---
 

@@ -1,6 +1,7 @@
 # ESPulse — Product Requirements Document
 
-> 版本：v0.4 | 状态：草稿 | 最后更新：2026-10
+> 版本：v0.5 | 状态：草稿 | 最后更新：2026-10
+> v0.5 说明：Phase 4 收缩为「先只做 macOS 桌面版」（不签名、系统默认菜单、无托盘）；Windows / Linux 与服务器模式留到后续。
 > v0.4 说明：确立页面骨架与交互层级（新增 §2.5）：顶栏拆为「集群切换器 + 模块 Tab」，取消侧边栏；过滤条件挂在集群上并可由 URL 表达。页面数量不变。
 > v0.3 说明：确立「功能先行、UI 后置」原则；产品定位收缩为 **Cerebro 替代品**；Dev Console 推迟到第二阶段。
 
@@ -277,11 +278,11 @@ Monaco Editor、ES REST 自动补全、请求执行、**命令目录侧边栏**�
 
 多集群统一视角、跨集群执行对比等。差异化押注未定，见 §10。
 
-### Phase 4 — 打包与多平台发布（最后环节）
+### Phase 4 — macOS 桌面版（进行中）
 
-> **前置条件：直到我们认为所有设计功能都完成之前，前面各阶段都不考虑实现打包与发布。**
+> 2026-10 决策：**先只做 macOS**，目标是尽快出可用版本；Windows / Linux 与服务器模式继续留到设计功能完成后。
 
-`embed.FS` 内嵌前端 + 单二进制构建脚本、交叉编译 / 多平台发布（Windows / macOS / Linux）、Electron 打包与托盘。这是收尾环节，不与功能开发并行。
+范围：`embed.FS` 内嵌前端 → Go 单二进制可独立托管前端 → Electron 壳 → dmg 打包（不签名）。壳层刻意从简：**系统默认菜单、无托盘、关窗即退出、不做自定义标题栏 / 窗口状态记忆 / 自动更新 / 公证**。执行清单见 [TASKS.md](./TASKS.md) Phase 4。
 
 ---
 
@@ -291,8 +292,9 @@ Monaco Editor、ES REST 自动补全、请求执行、**命令目录侧边栏**�
 2. **补齐工作台缺口**：别名视图迁入工作台；视角 / 过滤条件 URL 化；键盘支持（`⌘K` 等）留待交互稳定后。
 3. **Phase 2 重点**：Dev Console 的上下文感知智能提示（见 §6 Phase 2）。
 4. **技术债**：`internal/es` 的「落库样本环让重启后仍可继续差分」用例当前失败（`TestIndexRingSurvivesProcessRestart`），需先定位再进 Phase 2。
+5. **macOS 桌面版**：按 Phase 4 出可安装的 dmg（内嵌前端 + Go 二进制 + Electron 壳）。
 
-**本阶段不做**：虚拟滚动、告警、密码加密、`embed.FS`、Electron、配置文件预置、多实例采集去重（见 §10）。
+**本阶段不做**：虚拟滚动、告警、密码加密、配置文件预置、多实例采集去重（见 §10）；Windows / Linux 打包、服务器模式发布、托盘、代码签名与公证。
 
 ---
 
@@ -303,7 +305,7 @@ Monaco Editor、ES REST 自动补全、请求执行、**命令目录侧边栏**�
 - Shard reroute
 - 快照与仓库管理
 - 命令收藏夹、跨集群执行对比
-- 平台能力（**最后环节，设计功能全部完成前不考虑实现**）：`embed.FS` 内嵌、交叉编译 / 多平台发布、Electron 打包与托盘、配置文件预置
+- 平台能力（**macOS 桌面版已启动，见 §6 Phase 4**）：Windows / Linux 打包、服务器模式发布、universal 双架构包、托盘、自动更新、代码签名与公证、配置文件预置
 - 探索：慢查询日志可视化、AI 辅助 DSL、多用户权限与审计
 
 ---
@@ -353,7 +355,7 @@ Monaco Editor、ES REST 自动补全、请求执行、**命令目录侧边栏**�
 | 后端 | Go + Gin |
 | 本地存储 | SQLite（`modernc.org/sqlite`，纯 Go、无 CGO） |
 | 编辑器 | Monaco Editor（Phase 2 使用） |
-| 桌面端 | Electron（内嵌 Go 二进制，零外部依赖） |
+| 桌面端 | Electron（内嵌 Go 二进制，零外部依赖）；当前交付 macOS dmg |
 | 服务器部署 | 单二进制 + systemd，前端静态资源 `embed.FS` 内嵌 |
 
 **为什么选 Go**：单二进制分发、Electron 内嵌无痛、跨平台交叉编译、无 CGO。
@@ -361,6 +363,8 @@ Monaco Editor、ES REST 自动补全、请求执行、**命令目录侧边栏**�
 **两种部署形态**（内核共用，不做功能分叉）：
 
 - 服务器模式：单个 Go 二进制，前端内嵌，注册为 systemd 服务，局域网内浏览器访问
-- 桌面模式：Electron 主进程 `spawn` 拉起内置 Go 进程并监听本地端口，WebView 加载 `http://localhost:{port}`
+- 桌面模式：Electron 主进程 `spawn` 拉起内置 Go 进程并监听本地端口，WebView 加载 `http://127.0.0.1:{port}`
+
+**当前只交付桌面模式（macOS）**；服务器模式的代码保留可用，但不打包、不发布。
 
 详细架构见 [ARCHITECTURE.md](./ARCHITECTURE.md)

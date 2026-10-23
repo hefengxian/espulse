@@ -1,6 +1,7 @@
 # ESPulse — 架构设计文档
 
-> 版本：v0.2 | 对应 PRD：v0.2
+> 版本：v0.3 | 对应 PRD：v0.5
+> v0.3 说明：补上前端内嵌目录（`internal/web`）与 Electron 壳（`desktop`）的实际构建 / 启动方式；多平台交叉编译移至后续。
 
 ---
 
@@ -50,7 +51,7 @@ espulse/
 ├── go.sum
 │
 ├── internal/
-│   ├── config/                  # 预留：端口 / 数据目录等配置（当前为空，实现未排期）
+│   ├── config/                  # 预留：配置文件落地位置（当前用命令行参数，未使用该目录）
 │   │
 │   ├── database/
 │   │   ├── db.go                # SQLite 连接初始化（modernc.org/sqlite + database/sql）
@@ -75,8 +76,12 @@ espulse/
 │   │   ├── snapshot_store.go    # 快照落库（gzip）与样本读写
 │   │   └── collector_test.go
 │   │
+│   ├── web/                     # 前端静态资源内嵌与托管
+│   │   ├── web.go               # //go:embed all:dist + 静态 handler（assets 长缓存 / index 不缓存）
+│   │   └── dist/                # 前端构建产物（vite outDir；仓库只保留 .gitkeep 占位）
+│   │
 │   └── router/
-│       └── router.go            # Gin 路由注册 + 静态资源 embed 挂载
+│       └── router.go            # Gin 路由注册 + 挂载 web handler
 │
 ├── frontend/                    # Vue 3 前端（独立开发，构建产物内嵌进 Go）
 │   ├── src/
@@ -103,6 +108,11 @@ espulse/
 │   ├── ui_prototype/            # 设计参考用的独立 HTML 原型（不被构建引用）
 │   ├── package.json
 │   └── vite.config.ts
+│
+├── desktop/                     # Electron 壳（macOS 桌面版）
+│   ├── main.js                  # 启动后端、stdout 握手、窗口与生命周期
+│   ├── package.json             # electron + electron-builder 配置
+│   └── build/icon.icns
 │
 ├── scripts/
 │   └── docker-es-test.yml       # 本地 ES 测试集群
@@ -230,7 +240,7 @@ GET    /api/clusters/:id/recovery                    正在进行的恢复（_re
 
 每轮采集成功后快照立即落库（`snapshots`，gzip 压缩），因此内存缓存被淘汰、或进程重启后，读取会先返回落库的历史快照再后台刷新——只有「从未采集过」的集群才需要同步等一次采集。索引的写入 / 搜索速率是就地差分出的派生值（`index_samples` 样本环，窗口 60s），随快照一并返回并标注实际窗口。
 
-### 静态资源（服务器模式）
+### 静态资源（桌面端与服务器模式共用）
 ```
 GET    /*    由 embed.FS 提供前端静态文件，所有非 /api 路由返回 index.html（SPA 模式）
 ```
@@ -253,96 +263,63 @@ GET    /*    由 embed.FS 提供前端静态文件，所有非 /api 路由返回
 ## 6. 前端静态资源内嵌
 
 ```go
-// main.go 或 router/router.go
+// internal/web/web.go
 
-//go:embed static/dist
-var staticFiles embed.FS
+//go:embed all:dist
+var files embed.FS
 
-func SetupRouter() *gin.Engine {
-    r := gin.Default()
-
-    // API 路由
-    api := r.Group("/api")
-    // ... 注册 handlers
-
-    // 前端静态资源（SPA fallback）
-    r.NoRoute(func(c *gin.Context) {
-        // /assets/* 直接返回文件
-        // 其他路径返回 index.html
-        c.FileFromFS("static/dist/index.html", http.FS(staticFiles))
-    })
-
-    return r
+// Handler 返回托管前端的 http.Handler；/api 之外的路由全部交给它
+func Handler() http.Handler {
+    // assets/*        → Cache-Control: public, max-age=31536000, immutable
+    // index.html      → Cache-Control: no-cache
+    // 其他未命中路径   → 回 index.html
 }
 ```
+
+- 构建产物落在 `internal/web/dist`（vite `build.outDir`），由 `internal/router` 挂到 API 之后。
+- 前端路由用 hash history（`/#/workbench/:id`），所以不需要服务端做深层路径回退；仍然保留「未命中回 `index.html`」仅用于兜底。
+- 仓库里保留 `internal/web/dist/.gitkeep`，保证前端未构建时 `go run .` 也能编译。
 
 ---
 
 ## 7. 构建流程
 
 ```bash
-# scripts/build.sh
+# scripts/build-macos.sh
 
-# 1. 构建前端
-cd frontend && npm run build    # 输出到 ../static/dist/
+# 1. 前端构建到 embed 目录
+cd frontend && pnpm build          # outDir = ../internal/web/dist
 
-# 2. 编译 Go（关闭 CGO，确保跨平台）
+# 2. 编译 Go（无 CGO），产物作为 Electron 的 extraResources
 cd ..
-CGO_ENABLED=0 go build -ldflags="-s -w" -o espulse ./main.go
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o desktop/backend/espulse .
+
+# 3. 打 dmg（macOS，本阶段不签名）
+cd desktop && npx electron-builder --mac
 ```
 
-```bash
-# scripts/build-all.sh（交叉编译三平台）
-
-CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o dist/espulse-linux-amd64   .
-CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -o dist/espulse-darwin-amd64  .
-CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -o dist/espulse-darwin-arm64  .
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o dist/espulse-windows-amd64.exe .
-```
+开发时不用 Electron：`go run .` + 浏览器打开 `http://127.0.0.1:18080`（需先 `pnpm build`，或前端 `pnpm dev` 走 5173 + 代理）。
+Windows / Linux 的交叉编译与发布在 macOS 版本收口后再补。
 
 ---
 
-## 8. Electron 集成（P2 阶段）
+## 8. Electron 集成（macOS 桌面版）
 
-```js
-// electron/main.js（示意）
-const { app, BrowserWindow, Tray } = require('electron');
-const { spawn } = require('child_process');
-const path = require('path');
-const net = require('net');
+> 本阶段只出 macOS 版本，壳层从简：系统默认菜单、无托盘、关窗即退出、不记忆窗口状态。
 
-const PORT = 18080;
-let backendProcess = null;
+主进程（`desktop/main.js`）负责四件事：拉起后端、等它就绪、开窗口、退出时收尾。
 
-function startBackend() {
-    const binaryName = process.platform === 'win32' ? 'espulse.exe' : 'espulse';
-    const binaryPath = path.join(process.resourcesPath, binaryName);
-    backendProcess = spawn(binaryPath, ['--port', PORT], { stdio: 'ignore' });
-}
+| 环节 | 做法 | 原因 |
+|---|---|---|
+| 端口 | `--port 0` 交给内核分配，只绑 `127.0.0.1` | 避免与本地 18080 等服务冲突；桌面端不暴露到局域网 |
+| 就绪判定 | 后端监听成功后向 stdout 打印 `ESPULSE_READY url=...`，主进程读这一行 | 比 TCP 轮询确定，没有「先探端口再还回去」的竞态 |
+| 数据目录 | `--data-dir <userData>/data` | 包内只读、CWD 不可控，不能写 `./data` |
+| 日志 | `--log-file <userData>/logs/espulse.log` | 打包后没有控制台，出问题只能看文件 |
+| 单实例 | `app.requestSingleInstanceLock()`，二次启动聚焦已有窗口 | 两个实例会同时写同一个 SQLite |
+| 退出 | 关窗即退出；`before-quit` 结束后端；后端非 0 退出时提示「重启 / 退出」 | 避免残留采集进程 |
+| 安全 | 无 preload、`contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`；外链交给系统浏览器，站外导航一律拦截 | 页面内容只来自本地后端，不给渲染进程任何 Node 能力 |
 
-function waitForBackend(callback) {
-    const check = () => {
-        const client = net.connect(PORT, '127.0.0.1', () => {
-            client.destroy();
-            callback();
-        });
-        client.on('error', () => setTimeout(check, 200));
-    };
-    check();
-}
-
-app.whenReady().then(() => {
-    startBackend();
-    waitForBackend(() => {
-        const win = new BrowserWindow({ width: 1440, height: 900 });
-        win.loadURL(`http://127.0.0.1:${PORT}`);
-    });
-});
-
-app.on('before-quit', () => {
-    if (backendProcess) backendProcess.kill();
-});
-```
+打包：electron-builder，Go 二进制放 `extraResources`（asar 外，需可执行位），产物 `dmg + zip`，`mac.identity: null`（未签名，用户首次打开需右键「打开」）。
 
 ---
 
