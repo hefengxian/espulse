@@ -255,7 +255,7 @@ onDeactivated(() => {
           {{ clusters.length }} 个集群 · 状态由后端每 5 秒采集一次
         </div>
       </div>
-      <n-button v-if="clusters.length > 0" type="primary" @click="openCreate">添加集群</n-button>
+      <n-button v-if="clusters.length > 0" type="primary" size="small" @click="openCreate">添加集群</n-button>
     </div>
 
     <!-- 空状态 -->
@@ -268,7 +268,7 @@ onDeactivated(() => {
         ESPulse 是一个零依赖的 Elasticsearch 集群管理工具，用来替代依赖 JDK 的 Cerebro。
         添加一个集群端点即可开始。
       </div>
-      <n-button type="primary" @click="openCreate">添加第一个集群</n-button>
+      <n-button type="primary" size="small" @click="openCreate">添加第一个集群</n-button>
     </div>
 
     <!-- 集群卡片墙 -->
@@ -297,7 +297,11 @@ onDeactivated(() => {
             <button class="btn-icon" title="编辑" @click="openEdit(cluster)">
               <div class="w-3.5 h-3.5 i-lucide-pencil"></div>
             </button>
-            <n-popconfirm @positive-click="handleDelete(cluster)">
+            <n-popconfirm
+              :positive-button-props="{ size: 'small' }"
+              :negative-button-props="{ size: 'small' }"
+              @positive-click="handleDelete(cluster)"
+            >
               <template #trigger>
                 <button class="btn-icon" title="删除">
                   <div class="w-3.5 h-3.5 i-lucide-trash-2"></div>
@@ -338,14 +342,15 @@ onDeactivated(() => {
       </div>
     </div>
 
-    <!-- 新增 / 编辑集群 -->
+    <!-- 新增 / 编辑集群：控件统一取 Naive UI 的 small 档（表单尺寸由 n-form 下发，控件不再单独指定） -->
     <n-modal
       v-model:show="showModal"
       preset="card"
+      size="small"
       :title="editingId ? '编辑集群' : '添加集群'"
       class="max-w-lg bg-bg-2"
     >
-      <n-form :model="form" label-placement="top">
+      <n-form :model="form" label-placement="top" size="small">
         <n-form-item label="集群名称">
           <n-input v-model:value="form.name" placeholder="例如：生产集群 A" />
         </n-form-item>
@@ -384,9 +389,9 @@ onDeactivated(() => {
 
       <template #footer>
         <n-space justify="end">
-          <n-button @click="showModal = false">取消</n-button>
-          <n-button :loading="probing" @click="handleProbe">测试连接</n-button>
-          <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
+          <n-button size="small" @click="showModal = false">取消</n-button>
+          <n-button size="small" :loading="probing" @click="handleProbe">测试连接</n-button>
+          <n-button type="primary" size="small" :loading="saving" @click="handleSave">保存</n-button>
         </n-space>
       </template>
     </n-modal>

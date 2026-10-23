@@ -135,8 +135,8 @@ const MONO_FONT = getComputedStyle(document.documentElement)
   .getPropertyValue('--esp-font-mono')
   .trim() || 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 
-// 自定义 Monaco 主题：颜色取自 workbench.less 的 .esp-wb 令牌（Monaco 不认 var()，只能写字面量），
-// 让嵌入式控制台的编辑器背景 / 前景随 V5 明暗主题一致。
+// 自定义 Monaco 主题：颜色取自全局 --esp-* 色板（Monaco 不认 var()，只能写字面量），
+// 与 Hub / 工作台共用同一套配色；改动色板时这里需要手动跟着同步。
 const MONACO_THEME = { dark: 'esp-v5-dark', light: 'esp-v5-light' } as const
 
 monaco.editor.defineTheme(MONACO_THEME.dark, {
@@ -144,21 +144,21 @@ monaco.editor.defineTheme(MONACO_THEME.dark, {
   inherit: true,
   rules: [],
   colors: {
-    'editor.background': '#0a0b0e',
-    'editor.foreground': '#e7eaf2',
-    'editorGutter.background': '#0a0b0e',
+    'editor.background': '#0a0a0b',
+    'editor.foreground': '#f0f0f2',
+    'editorGutter.background': '#0a0a0b',
     'editorLineNumber.foreground': '#3c4456',
-    'editorLineNumber.activeForeground': '#99a2b6',
+    'editorLineNumber.activeForeground': '#8b8b9a',
     'editor.lineHighlightBackground': '#12151e',
-    'editor.selectionBackground': '#7c8bff33',
-    'editorCursor.foreground': '#7c8bff',
-    'editorIndentGuide.background1': '#1e2230',
-    'editorIndentGuide.activeBackground1': '#2a3143',
-    'editorWidget.background': '#0f1116',
-    'editorWidget.border': '#1e2230',
-    'scrollbarSlider.background': '#2a314380',
-    'scrollbarSlider.hoverBackground': '#2a3143cc',
-    'scrollbarSlider.activeBackground': '#2a3143',
+    'editor.selectionBackground': '#5b6cf833',
+    'editorCursor.foreground': '#5b6cf8',
+    'editorIndentGuide.background1': '#232329',
+    'editorIndentGuide.activeBackground1': '#2e2e38',
+    'editorWidget.background': '#111114',
+    'editorWidget.border': '#232329',
+    'scrollbarSlider.background': '#2e2e3880',
+    'scrollbarSlider.hoverBackground': '#2e2e38cc',
+    'scrollbarSlider.activeBackground': '#2e2e38',
   },
 })
 monaco.editor.defineTheme(MONACO_THEME.light, {
@@ -166,21 +166,21 @@ monaco.editor.defineTheme(MONACO_THEME.light, {
   inherit: true,
   rules: [],
   colors: {
-    'editor.background': '#f5f6f9',
-    'editor.foreground': '#0b0d13',
-    'editorGutter.background': '#f5f6f9',
+    'editor.background': '#ffffff',
+    'editor.foreground': '#111827',
+    'editorGutter.background': '#ffffff',
     'editorLineNumber.foreground': '#b4bac9',
-    'editorLineNumber.activeForeground': '#8a92a6',
+    'editorLineNumber.activeForeground': '#9ca3af',
     'editor.lineHighlightBackground': '#eef1f8',
-    'editor.selectionBackground': '#5566ef33',
-    'editorCursor.foreground': '#5566ef',
-    'editorIndentGuide.background1': '#e3e6ef',
-    'editorIndentGuide.activeBackground1': '#ced3e0',
-    'editorWidget.background': '#ffffff',
-    'editorWidget.border': '#e3e6ef',
-    'scrollbarSlider.background': '#ced3e080',
-    'scrollbarSlider.hoverBackground': '#ced3e0cc',
-    'scrollbarSlider.activeBackground': '#ced3e0',
+    'editor.selectionBackground': '#3b82f633',
+    'editorCursor.foreground': '#3b82f6',
+    'editorIndentGuide.background1': '#e5e7eb',
+    'editorIndentGuide.activeBackground1': '#d1d5db',
+    'editorWidget.background': '#f9fafb',
+    'editorWidget.border': '#e5e7eb',
+    'scrollbarSlider.background': '#d1d5db80',
+    'scrollbarSlider.hoverBackground': '#d1d5dbcc',
+    'scrollbarSlider.activeBackground': '#d1d5db',
   },
 })
 

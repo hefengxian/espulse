@@ -97,7 +97,7 @@ espulse/
 │   │   ├── composables/         # useTheme / useLocale / useGlobalRefresh
 │   │   ├── i18n/                # index.ts + locales/{zh-CN,en-US}.ts
 │   │   ├── stores/              # cluster.ts（集群列表与状态）、metadata.ts（控制台补全用的索引 / 字段元数据）
-│   │   ├── styles/              # workbench.less（作用域限定 .esp-wb）
+│   │   ├── styles/              # workbench.less（作用域限定 .esp-wb，配色统一引用全局 --esp-*）
 │   │   ├── utils/               # format.ts（字节 / 整数 / 速率）、freshness.ts（更新于 N 秒前）
 │   │   └── api/                 # clusters.ts / catalog.ts / overview.ts
 │   ├── ui_prototype/            # 设计参考用的独立 HTML 原型（不被构建引用）

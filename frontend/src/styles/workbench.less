@@ -2,41 +2,35 @@
    ESPulse Workbench — 样式
    —— 从 ui_prototype/espulse-workbench-v5.html 迁移而来
    —— 全部选择器限定在 .esp-wb 作用域内：与现有 UnoCSS 页面（.grid/.chip 等）零冲突
-   —— 设计令牌（--bg/--text/…）也定义在 .esp-wb 上，不污染全局
-   —— 明暗：.esp-wb 为深色默认；html.light .esp-wb 为浅色覆盖
+   —— 配色不再本地定义：一律引用全局 --esp-*，与 Hub / Naive UI 共用同一套色板
+   —— 明暗由 :root / :root.light 决定，工作台不做二次覆盖
    ============================================================ */
 
 .esp-wb {
-  /* 设计令牌（深色，默认） */
-  --bg: #0a0b0e;
-  --bg-2: #0f1116;
-  --bg-3: #151822;
-  --bg-4: #1b1f2b;
-  --hover: #12151e;
-  --border: #1e2230;
-  --border-2: #2a3143;
-  --text: #e7eaf2;
-  --text-2: #99a2b6;
-  --text-3: #5b6478;
-  --text-4: #3c4456;
-  --accent: #7c8bff;
-  --accent-2: #a78bfa;
-  --accent-glow: rgba(124, 139, 255, 0.14);
-  --green: #3ddc97;
-  --green-bg: rgba(61, 220, 151, 0.1);
-  --green-bd: rgba(61, 220, 151, 0.28);
-  --yellow: #f5c445;
-  --yellow-bg: rgba(245, 196, 69, 0.1);
-  --yellow-bd: rgba(245, 196, 69, 0.3);
-  --red: #ff6b6b;
-  --red-bg: rgba(255, 107, 107, 0.1);
-  --red-bd: rgba(255, 107, 107, 0.3);
-  --blue: #5aa9ff;
-  --blue-bg: rgba(90, 169, 255, 0.1);
-  --blue-bd: rgba(90, 169, 255, 0.28);
-  --violet: #b39dff;
-  --violet-bg: rgba(179, 157, 255, 0.1);
-  --violet-bd: rgba(179, 157, 255, 0.28);
+  /* 短别名：网格样式里高频引用，值全部来自全局色板 */
+  --bg: var(--esp-bg);
+  --bg-2: var(--esp-bg-2);
+  --bg-3: var(--esp-bg-3);
+  --bg-4: var(--esp-bg-4);
+  --hover: var(--esp-hover);
+  --border: var(--esp-border);
+  --border-2: var(--esp-border-2);
+  --text: var(--esp-text);
+  --text-2: var(--esp-text-2);
+  --text-3: var(--esp-text-3);
+  --text-4: var(--esp-text-4);
+  --accent: var(--esp-accent);
+  --accent-glow: var(--esp-accent-glow);
+  --green: var(--esp-green);
+  --green-bg: var(--esp-green-bg);
+  --green-bd: var(--esp-green-border);
+  --yellow: var(--esp-yellow);
+  --yellow-bg: var(--esp-yellow-bg);
+  --yellow-bd: var(--esp-yellow-border);
+  --red: var(--esp-red);
+  --red-bg: var(--esp-red-bg);
+  --red-bd: var(--esp-red-border);
+  --blue: var(--esp-blue);
   --mono: var(--esp-font-mono, 'JetBrains Mono', ui-monospace, Menlo, monospace);
   --sans: var(--esp-font-sans, 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif);
 
@@ -60,22 +54,6 @@
   font-size: var(--fs-ui);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
-}
-
-html.light .esp-wb {
-  --bg: #f5f6f9;
-  --bg-2: #fff;
-  --bg-3: #eef0f6;
-  --bg-4: #e4e7f0;
-  --hover: #eef1f8;
-  --border: #e3e6ef;
-  --border-2: #ced3e0;
-  --text: #0b0d13;
-  --text-2: #525b70;
-  --text-3: #8a92a6;
-  --text-4: #b4bac9;
-  --accent: #5566ef;
-  --accent-glow: rgba(85, 102, 239, 0.1);
 }
 
 .esp-wb .mono {
@@ -923,7 +901,7 @@ html.light .esp-wb {
 .esp-wb .wchip.on {
   background: var(--accent-glow);
   color: var(--accent);
-  border-color: rgba(124, 139, 255, 0.4);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .esp-wb .legend {

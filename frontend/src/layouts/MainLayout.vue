@@ -53,8 +53,9 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="esp-app-container h-screen flex flex-col overflow-hidden font-sans bg-bg text-text antialiased">
-    <header class="esp-header h-13 bg-bg-2 flex items-center gap-2.5 px-4 flex-shrink-0">
-      <img src="/logo-v4-workbench.svg" alt="ESPulse" class="h-7 w-auto flex-shrink-0" />
+    <!-- 顶栏与工作台同高（44px）、同内边距 / 间距、同 logo 尺寸：两页之间切换不跳 -->
+    <header class="esp-header h-11 bg-bg-2 flex items-center gap-2.5 px-3 flex-shrink-0">
+      <img src="/logo-v4-workbench.svg" alt="ESPulse" class="h-[23px] w-auto flex-shrink-0" />
 
       <!-- 层 1：我在看哪个集群（Hub 只是管理页，集群本身落在工作台） -->
       <ClusterSwitcher />
