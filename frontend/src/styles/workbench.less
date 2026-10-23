@@ -1289,8 +1289,7 @@ html.light .esp-wb {
   flex: 0 0 auto;
 }
 
-/* 索引单元格：单行 = 健康点 + 名称 +（异常状态）+ 右对齐的元信息微列。
-   元信息绝不换行：多一行就会把 --row-h 顶高，整表密度随之下降。 */
+/* 索引单元格：单行 = 健康点 + 名称 +（异常状态）。指标已独立成列，名称拿回原本被元信息占掉的宽度。 */
 .esp-wb .wgrid td.index {
   white-space: nowrap;
   text-overflow: clip;
@@ -1321,76 +1320,38 @@ html.light .esp-wb {
   color: var(--yellow);
 }
 
-/* 元信息微列：定宽 + 右对齐 + tabular 数字，跨行自动成列；完整值走 title */
-.esp-wb .ixmeta {
+/* 组头行宽标记：贴在组名前缀右侧，降一档字号免得与索引名抢读 */
+.esp-wb .gcnt {
   flex: 0 0 auto;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
   font-family: var(--mono);
   font-size: var(--fs-micro);
   font-weight: 500;
-  color: var(--text-2);
-  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
 }
 
-.esp-wb .ixmeta > .ixm {
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  padding: 0 7px;
-  border-left: 1px solid var(--border);
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.esp-wb .ixmeta > .ixm:first-child {
-  border-left: 0;
-  padding-left: 0;
-}
-
-.esp-wb .ixmeta > .ixm:last-child {
-  padding-right: 0;
-}
-
-/* 三列定宽：让「主/副 · 文档 · 存储」在组头行与子索引行之间对齐成列。宽度按 90% 场景取值：
-   字号 10px、等宽 0.6em → 6px/字；中列边饰 = 1px 描边 + 7px 双侧内边距 = 15px，末列无右内边距 = 8px。
-   取值上限 pr 4 字（12/1）、docs 5 字（45.6k）、store 6 字（45.6mb），各留 1px 防亚像素溢出。 */
-.esp-wb .ixm.pr {
-  width: 40px; /* 4×6 + 15 + 1 */
+/* 组头是汇总值，整体比单索引低一档，避免与真实值抢注意力 */
+.esp-wb tr.group td.gval {
+  color: var(--text-3);
+  font-weight: 500;
 }
 
 /* 副本 0：冗余缺口告警。用黄色而非红色 —— 红色留给已经发生的不可用，这里只是「坏一台就没救」；
-   副本数字加虚线底线，不靠颜色也能识别。只染 pr 微列、不加行底纹：日志类索引常有意不建副本，
+   副本数字加虚线底线，不靠颜色也能识别。只染这一格、不加行底纹：日志类索引常有意不建副本，
    行级高亮会让整张表变成噪声。 */
-.esp-wb .ixm.pr.no-rep {
+.esp-wb .wgrid td.no-rep {
   color: var(--yellow);
   font-weight: 600;
 }
 
-.esp-wb .ixm.pr.no-rep .repdigit {
+.esp-wb .wgrid td.no-rep .repdigit {
   text-decoration: underline dotted;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
 }
 
-.esp-wb .ixm.docs {
-  width: 46px; /* 5×6 + 15 + 1 */
-}
-
-.esp-wb .ixm.store {
-  width: 45px; /* 6×6 + 8 + 1 */
-}
-
-/* 组头条数标记：贴在最左 */
-.esp-wb .ixm.cnt {
-  color: var(--text-3);
-}
-
-/* 组头是汇总值，整体比单索引低一档，避免与真实值抢注意力 */
-.esp-wb .ixmeta.agg {
-  color: var(--text-3);
+/* 组头的副本告警要压过汇总值的降档 */
+.esp-wb tr.group td.gval.no-rep {
+  color: var(--yellow);
 }
 
 .esp-wb .hdot.green {

@@ -156,7 +156,10 @@ function pct(value: string | number | undefined): string {
   <template v-if="view === 'index'">
     <table class="wgrid">
       <colgroup>
-        <col style="width: 326px" />
+        <col style="width: 300px" />
+        <col style="width: 56px" />
+        <col style="width: 68px" />
+        <col style="width: 72px" />
         <col style="width: 64px" />
         <col style="width: 64px" />
         <col v-for="n in nodeColumns" :key="n.name" style="width: 86px" />
@@ -164,7 +167,7 @@ function pct(value: string | number | undefined): string {
       </colgroup>
       <thead>
         <tr class="h1">
-          <th class="frz" colspan="3" style="text-align: left">
+          <th class="frz" colspan="6" style="text-align: left">
             {{ t('grid.indexSummary') }} ({{ indexRows.length }})
           </th>
           <th v-if="nodeColumns.length" class="grp" :colspan="nodeColumns.length">{{ t('grid.nodeShardDist') }}</th>
@@ -173,6 +176,13 @@ function pct(value: string | number | undefined): string {
         <tr>
           <th class="frz sortable" :class="{ sorted: sortKey === 'index' }" @click="emit('sort', 'index')">
             {{ t('grid.index') }}{{ sortArrow('index') }}
+          </th>
+          <th class="num">{{ t('grid.priRep') }}</th>
+          <th class="num sortable" :class="{ sorted: sortKey === 'docs' }" @click="emit('sort', 'docs')">
+            {{ t('grid.docs') }}{{ sortArrow('docs') }}
+          </th>
+          <th class="num sortable" :class="{ sorted: sortKey === 'store' }" @click="emit('sort', 'store')">
+            {{ t('grid.store') }}{{ sortArrow('store') }}
           </th>
           <th class="num sortable" :class="{ sorted: sortKey === 'write' }" @click="emit('sort', 'write')">
             {{ t('grid.writePerSec') }}{{ sortArrow('write') }}
@@ -209,21 +219,19 @@ function pct(value: string | number | undefined): string {
                 </span>
                 <span class="hdot" :class="item.group.worst"></span>
                 <span class="nm">{{ item.group.prefix }}*</span>
-                <!-- 元信息与索引行同处一行、右侧定宽成列；组头为汇总值，整体降一档 -->
-                <span class="ixmeta agg">
-                  <span class="ixm cnt">{{ item.group.rows.length }}×</span>
-                  <span
-                    class="ixm pr"
-                    :class="{ 'no-rep': item.group.repZero > 0 }"
-                    :title="groupPriRepTip(item.group)"
-                  >{{ item.group.pri }}/{{ item.group.rep }}</span>
-                  <span class="ixm docs" :title="docsTip(item.group.docs)">{{ fmtCount(item.group.docs) }}</span>
-                  <span class="ixm store" :title="storeTip(item.group.store)">{{ fmtStore(item.group.store) }}</span>
-                </span>
+                <!-- 组头行宽 = 组内索引数；其余指标走独立的表格列 -->
+                <span class="gcnt">{{ item.group.rows.length }}×</span>
               </div>
             </td>
-            <td class="num dim">Σ</td>
-            <td class="num dim">Σ</td>
+            <td
+              class="num mono gval"
+              :class="{ 'no-rep': item.group.repZero > 0 }"
+              :title="groupPriRepTip(item.group)"
+            >{{ item.group.pri }}/{{ item.group.rep }}</td>
+            <td class="num mono gval" :title="docsTip(item.group.docs)">{{ fmtCount(item.group.docs) }}</td>
+            <td class="num mono gval" :title="storeTip(item.group.store)">{{ fmtStore(item.group.store) }}</td>
+            <td class="num gval">Σ</td>
+            <td class="num gval">Σ</td>
             <td v-for="n in nodeColumns" :key="n.name" class="node dim">·</td>
             <td class="node dim">·</td>
           </tr>
@@ -236,17 +244,15 @@ function pct(value: string | number | undefined): string {
                 <span class="nm" :title="item.row.index.index">{{ item.row.index.index }}</span>
                 <!-- 状态常态不占位：只有 close / frozen 等异常态才冒出来 -->
                 <span v-if="isClosed(item.row.index.status)" class="ixst">{{ item.row.index.status }}</span>
-                <span class="ixmeta">
-                  <span
-                    class="ixm pr"
-                    :class="{ 'no-rep': noReplica(item.row.index) }"
-                    :title="priRepTipFor(item.row.index)"
-                  >{{ item.row.index.pri }}/<span class="repdigit">{{ item.row.index.rep }}</span></span>
-                  <span class="ixm docs" :title="docsTip(item.row.index['docs.count'])">{{ fmtCount(item.row.index['docs.count']) }}</span>
-                  <span class="ixm store" :title="storeTip(item.row.index['store.size'])">{{ fmtStore(item.row.index['store.size']) }}</span>
-                </span>
               </div>
             </td>
+            <td
+              class="num mono"
+              :class="{ 'no-rep': noReplica(item.row.index) }"
+              :title="priRepTipFor(item.row.index)"
+            >{{ item.row.index.pri }}/<span class="repdigit">{{ item.row.index.rep }}</span></td>
+            <td class="num mono" :title="docsTip(item.row.index['docs.count'])">{{ fmtCount(item.row.index['docs.count']) }}</td>
+            <td class="num mono" :title="storeTip(item.row.index['store.size'])">{{ fmtStore(item.row.index['store.size']) }}</td>
             <td class="num mono">{{ fmtRate(item.row.index.index_rate) }}</td>
             <td class="num mono">{{ fmtRate(item.row.index.search_rate) }}</td>
             <td v-for="(cell, ci) in item.cells" :key="ci" class="node">

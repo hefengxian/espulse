@@ -986,8 +986,7 @@ watch(
       <div v-else-if="gridState === 'skeleton'" class="gridskel">
         <div v-for="r in 9" :key="r" class="skrow">
           <span class="sk w-name"></span>
-          <span class="sk w-num"></span>
-          <span class="sk w-num"></span>
+          <span v-for="c in 5" :key="'n' + c" class="sk w-num"></span>
           <span v-for="c in SKEL_NODE_COLS" :key="c" class="sk w-cell"></span>
         </div>
       </div>
